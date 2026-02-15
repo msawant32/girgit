@@ -20,33 +20,40 @@ export function LandingPage() {
     setLoading(true);
     setError('');
 
-    // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
-      // Wait a bit for connection
-      setTimeout(() => {
-        socket.emit('create-room', playerName.trim(), (response) => {
-          setLoading(false);
-          if (response.success) {
-            navigate(`/room/${response.roomCode}`, {
-              state: { player: response.player, players: [response.player] }
-            });
-          } else {
-            setError(response.error || 'Failed to create room');
-          }
-        });
-      }, 500);
-    } else {
+    const createRoom = () => {
       socket.emit('create-room', playerName.trim(), (response) => {
         setLoading(false);
-        if (response.success) {
+        if (response && response.success) {
           navigate(`/room/${response.roomCode}`, {
             state: { player: response.player, players: [response.player] }
           });
         } else {
-          setError(response.error || 'Failed to create room');
+          setError(response?.error || 'Failed to create room. Please try again.');
         }
       });
+    };
+
+    // Ensure socket is connected before creating room
+    if (socket.connected) {
+      createRoom();
+    } else {
+      const onConnect = () => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        createRoom();
+      };
+
+      const onConnectError = (err) => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        setLoading(false);
+        setError('Cannot connect to server. Please check if the server is running.');
+        console.error('Socket connection error:', err);
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('connect_error', onConnectError);
+      socket.connect();
     }
   };
 
@@ -64,38 +71,43 @@ export function LandingPage() {
     setLoading(true);
     setError('');
 
-    // Ensure socket is connected
-    if (!socket.connected) {
-      socket.connect();
-      setTimeout(() => {
-        socket.emit('join-room', {
-          roomCode: roomCode.trim(),
-          playerName: playerName.trim()
-        }, (response) => {
-          setLoading(false);
-          if (response.success) {
-            navigate(`/room/${roomCode.trim()}`, {
-              state: { player: response.player, players: response.gameState?.players || [] }
-            });
-          } else {
-            setError(response.error || 'Failed to join room');
-          }
-        });
-      }, 500);
-    } else {
+    const joinRoom = () => {
       socket.emit('join-room', {
         roomCode: roomCode.trim(),
         playerName: playerName.trim()
       }, (response) => {
         setLoading(false);
-        if (response.success) {
+        if (response && response.success) {
           navigate(`/room/${roomCode.trim()}`, {
             state: { player: response.player, players: response.gameState?.players || [] }
           });
         } else {
-          setError(response.error || 'Failed to join room');
+          setError(response?.error || 'Failed to join room');
         }
       });
+    };
+
+    // Ensure socket is connected before joining room
+    if (socket.connected) {
+      joinRoom();
+    } else {
+      const onConnect = () => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        joinRoom();
+      };
+
+      const onConnectError = (err) => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        setLoading(false);
+        setError('Cannot connect to server. Please check if the server is running.');
+        console.error('Socket connection error:', err);
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('connect_error', onConnectError);
+      socket.connect();
     }
   };
 
