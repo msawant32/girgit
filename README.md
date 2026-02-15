@@ -1,23 +1,23 @@
-# 🦎 Chameleon - Multiplayer Social Deduction Game
+# 🦎 Girgit - Multiplayer Social Deduction Game
 
-A real-time multiplayer web game inspired by the Chameleon card game. Find the imposter among your friends in this exciting social deduction experience!
+A real-time multiplayer web game inspired by the Girgit card game. Find the imposter among your friends in this exciting social deduction experience!
 
 ## 🎮 How to Play
 
 1. **Create or Join a Room**: Enter your name and create a new room or join an existing one with a 6-digit code
 2. **Wait for Players**: Minimum 3 players required to start the game
 3. **Game Phases**:
-   - **Setup** (5s): One player is secretly chosen as the Chameleon
+   - **Setup** (5s): One player is secretly chosen as the Girgit
    - **Clue Phase** (60s): Each player gives a one-word clue related to the secret word
    - **Discussion** (30s): Players discuss and identify suspicious behavior
-   - **Voting** (30s): Vote on who you think is the Chameleon
-   - **Resolution**: If caught, the Chameleon can guess the word to redeem themselves!
+   - **Voting** (30s): Vote on who you think is the Girgit
+   - **Resolution**: If caught, the Girgit can guess the word to redeem themselves!
 
 ## 🎯 Scoring
 
-- **Chameleon caught & guesses correctly**: Chameleon gets 2 points
-- **Chameleon caught & guesses wrong**: Other players get 1 point each
-- **Chameleon not caught**: Chameleon gets 3 points
+- **Girgit caught & guesses correctly**: Girgit gets 2 points
+- **Girgit caught & guesses wrong**: Other players get 1 point each
+- **Girgit not caught**: Girgit gets 3 points
 
 ## 🚀 Features
 
@@ -184,7 +184,7 @@ theme: {
   extend: {
     colors: {
       primary: { /* your colors */ },
-      chameleon: { /* your colors */ }
+      Girgit: { /* your colors */ }
     }
   }
 }
@@ -229,7 +229,7 @@ MIT License - feel free to use this project for learning or building your own ve
 
 ## 🙏 Credits
 
-Inspired by the Chameleon board game. Built with React, Node.js, and Socket.io.
+Inspired by the Girgit board game. Built with React, Node.js, and Socket.io.
 
 ## 📞 Support
 
@@ -239,4 +239,4 @@ For issues or questions:
 
 ---
 
-**Have fun finding the Chameleon! 🦎🔍**
+**Have fun finding the Girgit! 🦎🔍**
