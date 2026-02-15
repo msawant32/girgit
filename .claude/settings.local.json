@@ -2,7 +2,9 @@
   "permissions": {
     "allow": [
       "Bash(npm create:*)",
-      "Bash(npm start)"
+      "Bash(npm start)",
+      "Bash(npx vite preview:*)",
+      "Bash(curl:*)"
     ]
   }
 }
