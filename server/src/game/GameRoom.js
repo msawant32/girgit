@@ -84,7 +84,7 @@ export class GameRoom {
 
   startCluePhase() {
     this.gameState = 'clue';
-    this.timerEndTime = Date.now() + 60000; // 60 seconds
+    this.timerEndTime = Date.now() + 600000; // 600 seconds
   }
 
   submitClue(playerId, clue) {

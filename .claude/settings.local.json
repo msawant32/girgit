@@ -4,7 +4,8 @@
       "Bash(npm create:*)",
       "Bash(npm start)",
       "Bash(npx vite preview:*)",
-      "Bash(curl:*)"
+      "Bash(curl:*)",
+      "Bash(lsof:*)"
     ]
   }
 }

@@ -2,7 +2,7 @@
 
 ## Prerequisites
 - GitHub account
-- Cyclic account (sign up at cyclic.sh)
+- Render account (sign up at render.com)
 - Netlify account (sign up at netlify.com)
 
 ## Step 1: Push to GitHub
@@ -15,23 +15,28 @@ git remote add origin https://github.com/YOUR_USERNAME/chameleon-game.git
 git push -u origin main
 ```
 
-## Step 2: Deploy Backend to Cyclic
+## Step 2: Deploy Backend to Render
 
-1. Go to [cyclic.sh](https://cyclic.sh)
-2. Click "Deploy" or "Connect Repository"
-3. Sign in with GitHub
-4. Select your repository
-5. Cyclic will auto-detect the Node.js app in `/server`
-6. **Important:** Set root directory to `server` if prompted
-7. Click "Deploy"
+1. Go to [render.com](https://render.com)
+2. Click "New +" → "Web Service"
+3. Sign in with GitHub and select your repository
+4. Configure the service:
+   - **Name:** chameleon-backend
+   - **Region:** Oregon (or closest to you)
+   - **Branch:** main
+   - **Root Directory:** `server`
+   - **Runtime:** Node
+   - **Build Command:** `npm install`
+   - **Start Command:** `npm start`
+   - **Plan:** Free
 
-### Configure Environment Variables on Cyclic:
-- Go to your app settings
-- Add environment variable:
-  - `NODE_ENV` = `production`
-  - `CLIENT_URL` = `*` (or your Netlify domain later)
+5. **Environment Variables:**
+   - Click "Advanced" → Add:
+   - `NODE_ENV` = `production`
 
-8. Copy your Cyclic app URL (e.g., `https://your-app.cyclic.app`)
+6. Click "Create Web Service"
+7. Wait 3-5 minutes for deployment
+8. Copy your Render URL (e.g., `https://chameleon-backend.onrender.com`)
 
 ## Step 3: Deploy Frontend to Netlify
 
@@ -47,7 +52,7 @@ git push -u origin main
 5. Go to Site settings → Environment variables
 6. Add variable:
    - **Key:** `VITE_SOCKET_URL`
-   - **Value:** Your Cyclic backend URL (from Step 2)
+   - **Value:** Your Render backend URL (from Step 2)
 
 7. Click "Deploy site"
 
@@ -55,7 +60,7 @@ git push -u origin main
 
 After deployment, update the backend CORS settings:
 
-1. Go to your Cyclic dashboard
+1. Go to your Render dashboard
 2. Edit environment variables
 3. Update `CLIENT_URL` to your Netlify domain:
    - `CLIENT_URL` = `https://your-app.netlify.app`
@@ -73,13 +78,15 @@ After deployment, update the backend CORS settings:
 
 ### Socket Connection Errors
 - Verify `VITE_SOCKET_URL` is set correctly on Netlify
-- Check Cyclic backend is running (visit the /health endpoint)
+- Check Render backend is running (visit the /health endpoint)
 - Check CORS settings on backend
+- Render free tier sleeps after 15min inactivity - first request may be slow
 
 ### Backend Not Responding
-- Check Cyclic logs in the dashboard
+- Check Render logs in the dashboard
 - Verify environment variables are set
-- Check if PORT is being used correctly (Cyclic sets this automatically)
+- Render free tier may take 30-60 seconds to wake up from sleep
+- Check if PORT is being used correctly (Render sets this automatically)
 
 ### Frontend Build Fails
 - Check if all dependencies are in package.json
@@ -88,13 +95,13 @@ After deployment, update the backend CORS settings:
 
 ## URLs After Deployment
 
-- **Backend API:** `https://your-app.cyclic.app`
+- **Backend API:** `https://chameleon-backend.onrender.com`
 - **Frontend:** `https://your-app.netlify.app`
-- **Health Check:** `https://your-app.cyclic.app/health`
+- **Health Check:** `https://chameleon-backend.onrender.com/health`
 
 ## Cost
 
-- Cyclic: **FREE** (with limits: 10,000 requests/month)
+- Render: **FREE** (with limits: 10,000 requests/month)
 - Netlify: **FREE** (100GB bandwidth, 300 build minutes/month)
 
 ## Local Development
