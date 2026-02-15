@@ -185,6 +185,14 @@ export function GameBoard() {
     });
   };
 
+  const handleNewGame = () => {
+    socket.emit('start-game', (response) => {
+      if (!response.success) {
+        console.error('Failed to start new game');
+      }
+    });
+  };
+
   const handleSendMessage = (message) => {
     socket.emit('chat-message', { message }, (response) => {
       if (!response.success) {
@@ -445,20 +453,29 @@ export function GameBoard() {
                   )}
 
                   {isHost && (
-                    <div className="flex gap-3 pt-4">
-                      <Button
-                        variant="primary"
-                        onClick={handleNextRound}
-                        className="flex-1"
-                      >
-                        Next Round
-                      </Button>
+                    <div className="space-y-3 pt-4">
+                      <div className="flex gap-3">
+                        <Button
+                          variant="primary"
+                          onClick={handleNextRound}
+                          className="flex-1"
+                        >
+                          Next Round
+                        </Button>
+                        <Button
+                          variant="success"
+                          onClick={handleNewGame}
+                          className="flex-1"
+                        >
+                          New Game
+                        </Button>
+                      </div>
                       <Button
                         variant="danger"
                         onClick={handleEndGame}
-                        className="flex-1"
+                        className="w-full"
                       >
-                        End Game
+                        End Game & Exit
                       </Button>
                     </div>
                   )}

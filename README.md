@@ -28,6 +28,9 @@ A real-time multiplayer web game inspired by the Chameleon card game. Find the i
 - ✅ Game history tracking
 - ✅ Mobile-friendly responsive design
 - ✅ 20 categories with 400+ words
+- ✅ New Game button to restart with same players
+- ✅ Automatic socket reconnection
+- ✅ Host controls for game flow
 
 ## 🛠️ Tech Stack
 
@@ -116,51 +119,24 @@ Girgit/
 
 ## 🌐 Deployment
 
-### Deploy Backend to Railway
+See [DEPLOYMENT.md](DEPLOYMENT.md) for detailed deployment instructions.
 
-1. **Create Railway Account**
-   - Go to [railway.app](https://railway.app)
-   - Sign up with GitHub
+### Quick Deployment Guide
 
-2. **Deploy Backend**
-   - Click "New Project"
-   - Select "Deploy from GitHub repo"
-   - Select your Girgit repository
-   - Set root directory to `/server`
-   - Railway will auto-detect and deploy
+**Backend: Cyclic**
+1. Push code to GitHub
+2. Go to [cyclic.sh](https://cyclic.sh)
+3. Connect repository, set root to `server`
+4. Deploy and copy URL
 
-3. **Configure Environment**
-   - No environment variables needed for basic setup
-   - Note your backend URL (e.g., `https://your-app.railway.app`)
+**Frontend: Netlify**
+1. Go to [netlify.com](https://www.netlify.com)
+2. Connect repository
+3. Set base directory: `client`
+4. Add env var: `VITE_SOCKET_URL` = Cyclic URL
+5. Deploy
 
-4. **Configure CORS** (if needed)
-   - The server already has CORS configured for all origins
-   - For production, update `server/src/index.js` to whitelist specific domains
-
-### Deploy Frontend to Vercel
-
-1. **Create Vercel Account**
-   - Go to [vercel.com](https://vercel.com)
-   - Sign up with GitHub
-
-2. **Deploy Frontend**
-   - Click "New Project"
-   - Import your Girgit repository
-   - Configure:
-     - Framework Preset: Vite
-     - Root Directory: `client`
-     - Build Command: `npm run build`
-     - Output Directory: `dist`
-
-3. **Set Environment Variables**
-   - Add environment variable:
-     - Name: `VITE_SOCKET_URL`
-     - Value: Your Railway backend URL (e.g., `https://your-app.railway.app`)
-
-4. **Deploy**
-   - Click "Deploy"
-   - Wait for deployment to complete
-   - Your game will be live at `https://your-app.vercel.app`
+Both services offer **FREE** tiers!
 
 ## 🔧 Environment Variables
 
