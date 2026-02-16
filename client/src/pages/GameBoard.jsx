@@ -82,6 +82,9 @@ export function GameBoard() {
       if (data.scores) {
         setScores(data.scores);
       }
+      if (data.votes) {
+        setVotes(new Map(data.votes));
+      }
     }
 
     function onTimerUpdate(data) {
@@ -97,7 +100,10 @@ export function GameBoard() {
     }
 
     function onVoteSubmitted(data) {
-      // Just update vote count for feedback
+      // Update votes display
+      if (data.votes) {
+        setVotes(new Map(data.votes));
+      }
     }
 
     function onRoundResolved(data) {
@@ -194,8 +200,9 @@ export function GameBoard() {
   };
 
   const handleSubmitVote = (playerId) => {
-    if (myVote || playerId === currentPlayer) return;
+    if (playerId === currentPlayer) return;
 
+    // Allow changing vote during voting-complete phase
     socket.emit('submit-vote', { votedForId: playerId }, (response) => {
       if (response.success) {
         setMyVote(playerId);
@@ -257,6 +264,8 @@ export function GameBoard() {
         return 'Discussion Time';
       case 'voting':
         return 'Vote for the Girgit';
+      case 'voting-complete':
+        return 'Voting Complete - Discuss!';
       case 'resolution':
         return 'Round Results';
       case 'ended':
@@ -269,12 +278,27 @@ export function GameBoard() {
   return (
     <div className="min-h-screen p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-3xl font-bold text-gray-800">
-            Round {currentRound}
-          </h1>
-          <div className="text-lg sm:text-xl text-gray-600 mt-1">{getPhaseTitle()}</div>
+        {/* Header with Home Button and Logo */}
+        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
+          <button
+            onClick={() => navigate('/')}
+            className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition-colors shadow-md"
+          >
+            <span className="text-2xl">🏠</span>
+            <span className="text-base font-semibold hidden sm:inline">Home</span>
+          </button>
+
+          <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-3">
+            <div className="flex items-center justify-between">
+              <div className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600">
+                🦎 Girgit
+              </div>
+              <div className="text-right">
+                <div className="text-lg sm:text-xl font-bold text-gray-800">Round {currentRound}</div>
+                <div className="text-xs sm:text-sm text-gray-600">{getPhaseTitle()}</div>
+              </div>
+            </div>
+          </div>
         </div>
 
         {/* Scrolling Secret Word List - Show only words from current category */}
@@ -316,6 +340,7 @@ export function GameBoard() {
                 players={players}
                 currentPlayerId={currentPlayer}
                 clues={clues}
+                votes={votes}
               />
             </Card>
           </div>
@@ -484,6 +509,46 @@ export function GameBoard() {
               </Card>
             )}
 
+            {/* Voting Complete - Discussion Period */}
+            {gameState === 'voting-complete' && (
+              <Card title="All Votes Submitted!">
+                <div className="space-y-4 text-center">
+                  <div className="bg-yellow-50 border-2 border-yellow-300 p-4 rounded-lg">
+                    <p className="text-lg sm:text-xl font-bold text-yellow-800 mb-2">
+                      ✓ Everyone has voted!
+                    </p>
+                    <p className="text-sm sm:text-base text-yellow-700">
+                      Discuss and change your vote if needed.
+                    </p>
+                    <p className="text-lg font-bold text-yellow-900 mt-2">
+                      Results in {remainingTime} seconds...
+                    </p>
+                  </div>
+
+                  <div className="bg-blue-50 p-3 rounded-lg">
+                    <p className="text-sm font-semibold text-blue-800 mb-2">
+                      You can still change your vote using the chat or by re-voting!
+                    </p>
+                  </div>
+
+                  {/* Allow re-voting */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {players.filter(p => p.id !== currentPlayer).map((player) => (
+                      <Button
+                        key={player.id}
+                        variant={myVote === player.id ? 'success' : 'secondary'}
+                        onClick={() => handleSubmitVote(player.id)}
+                        className="w-full text-sm py-2"
+                      >
+                        {player.name}
+                        {myVote === player.id && ' ✓'}
+                      </Button>
+                    ))}
+                  </div>
+                </div>
+              </Card>
+            )}
+
             {/* Game Ended - Show Final Cumulative Scores */}
             {gameState === 'ended' && (
               <Card title="🏆 Game Complete!">
@@ -578,20 +643,7 @@ export function GameBoard() {
                       <div className="text-2xl sm:text-3xl font-bold text-blue-600">{roundResult.secretWord}</div>
                     </div>
                   </div>
-
-                  {/* Display Current Scores */}
-                  <div className="bg-gray-50 p-3 sm:p-4 rounded-lg">
-                    <h4 className="text-sm sm:text-base font-semibold mb-2 text-center">Current Scores</h4>
-                    <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
-                      {scores.sort((a, b) => b.score - a.score).map((player) => (
-                        <div key={player.playerId} className="bg-white p-2 rounded text-center">
-                          <div className="text-xs sm:text-sm font-medium truncate">{player.playerName}</div>
-                          <div className="text-lg sm:text-xl font-bold text-blue-600">{player.score}</div>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-
+                  
                   {roundResult.chameleonCaught && isChameleon && !roundResult.guess && (
                     <div className="space-y-3">
                       <p className="text-center text-sm sm:text-base font-semibold">
@@ -643,32 +695,7 @@ export function GameBoard() {
                     >
                       Start New Game
                     </Button>
-
-                    {/* Host-only controls */}
-                    {isHost && (
-                      <>
-                        <Button
-                          variant="primary"
-                          onClick={handleNextRound}
-                          className="w-full"
-                        >
-                          Next Round (Same Players)
-                        </Button>
-                        <Button
-                          variant="danger"
-                          onClick={handleEndGame}
-                          className="w-full"
-                        >
-                          End Game & Exit to Lobby
-                        </Button>
-                      </>
-                    )}
-
-                    {!isHost && (
-                      <div className="text-center text-sm text-gray-500 mt-2">
-                        Host controls next round and exit options
-                      </div>
-                    )}
+ 
                   </div>
                 </div>
               </Card>

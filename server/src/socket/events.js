@@ -248,7 +248,7 @@ export function setupSocketEvents(io) {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
 
-        if (!room || room.gameState !== 'voting') {
+        if (!room || (room.gameState !== 'voting' && room.gameState !== 'voting-complete')) {
           return callback({ success: false, error: 'Invalid game state' });
         }
 
@@ -261,15 +261,33 @@ export function setupSocketEvents(io) {
         io.to(roomCode).emit('vote-submitted', {
           voterId: socket.id,
           votesCount: room.votes.size,
-          totalPlayers: room.players.size
+          totalPlayers: room.players.size,
+          votes: Array.from(room.votes.entries())
         });
 
         callback({ success: true });
 
-        // If all votes submitted, resolve round
+        // If all votes submitted, start 1-minute discussion before resolving
         if (room.votes.size === room.players.size) {
-          setTimeout(() => {
-            resolveRound(io, roomCode, room);
+          room.gameState = 'voting-complete';
+          room.timerEndTime = Date.now() + 60000; // 1 minute
+
+          io.to(roomCode).emit('game-state-update', {
+            gameState: 'voting-complete',
+            players: room.getPlayers(),
+            remainingTime: 60,
+            votes: Array.from(room.votes.entries())
+          });
+
+          // Start countdown timer
+          const discussInterval = setInterval(() => {
+            const remaining = room.getRemainingTime();
+            io.to(roomCode).emit('timer-update', { remainingTime: remaining });
+
+            if (remaining <= 0) {
+              clearInterval(discussInterval);
+              resolveRound(io, roomCode, room);
+            }
           }, 1000);
         }
       } catch (error) {
