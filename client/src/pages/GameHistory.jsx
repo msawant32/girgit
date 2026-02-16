@@ -103,7 +103,7 @@ export function GameHistory() {
                       <div className="flex justify-between items-start mb-2">
                         <div className="font-semibold">Round {round.roundNumber}</div>
                         <div className={`badge ${round.chameleonCaught ? 'bg-blue-100 text-blue-800' : 'bg-green-100 text-green-800'}`}>
-                          {round.chameleonCaught ? 'Chameleon Caught' : 'Chameleon Escaped'}
+                          {round.chameleonCaught ? 'Girgit Caught' : 'Girgit Escaped'}
                         </div>
                       </div>
                       <div className="grid grid-cols-2 gap-2 text-sm">
@@ -116,7 +116,7 @@ export function GameHistory() {
                           <span className="font-semibold">{round.secretWord}</span>
                         </div>
                         <div>
-                          <span className="text-gray-600">Chameleon:</span>{' '}
+                          <span className="text-gray-600">Girgit:</span>{' '}
                           <span className="font-semibold text-green-600">{round.chameleonName}</span>
                         </div>
                         <div>

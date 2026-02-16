@@ -84,7 +84,7 @@ export class GameRoom {
 
   startCluePhase() {
     this.gameState = 'clue';
-    this.timerEndTime = Date.now() + 600000; // 600 seconds
+    this.timerEndTime = Date.now() + 600000; // 10 minutes
   }
 
   submitClue(playerId, clue) {
@@ -112,13 +112,13 @@ export class GameRoom {
 
   startDiscussionPhase() {
     this.gameState = 'discussion';
-    this.timerEndTime = Date.now() + 30000; // 30 seconds
+    this.timerEndTime = Date.now() + 600000; // 10 minutes
   }
 
   startVotingPhase() {
     this.gameState = 'voting';
     this.votes.clear();
-    this.timerEndTime = Date.now() + 30000; // 30 seconds
+    this.timerEndTime = Date.now() + 600000; // 10 minutes
   }
 
   submitVote(voterId, votedForId) {

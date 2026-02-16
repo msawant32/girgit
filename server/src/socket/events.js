@@ -5,7 +5,9 @@ import {
   addGamePlayer,
   addGameRound,
   getRecentGames,
-  getGameDetails
+  getGameDetails,
+  getPlayerScore,
+  updatePlayerScore
 } from '../database/db.js';
 
 const rooms = new Map(); // roomCode -> GameRoom
@@ -86,6 +88,53 @@ export function setupSocketEvents(io) {
       }
     });
 
+    // Rejoin room
+    socket.on('rejoin-room', ({ roomCode, playerName }, callback) => {
+      try {
+        const room = rooms.get(roomCode);
+
+        if (!room) {
+          return callback({ success: false, error: 'Room not found or game has ended' });
+        }
+
+        // Check if player name matches an existing player
+        const existingPlayer = Array.from(room.players.values()).find(
+          p => p.name.toLowerCase() === playerName.toLowerCase()
+        );
+
+        if (!existingPlayer) {
+          return callback({ success: false, error: 'Player not found in this room' });
+        }
+
+        // Remove old socket association if exists
+        const oldSocket = Array.from(room.players.entries()).find(
+          ([_, p]) => p.name === playerName
+        )?.[0];
+
+        if (oldSocket && oldSocket !== socket.id) {
+          room.removePlayer(oldSocket);
+          socketToRoom.delete(oldSocket);
+        }
+
+        // Add player with new socket
+        const player = room.addPlayer(socket.id, playerName);
+        socketToRoom.set(socket.id, roomCode);
+        socket.join(roomCode);
+
+        // Notify all players
+        io.to(roomCode).emit('player-joined', {
+          player,
+          players: room.getPlayers()
+        });
+
+        callback({ success: true, player, gameState: room.getGameState(), rejoined: true });
+        console.log(`${playerName} rejoined room ${roomCode}`);
+      } catch (error) {
+        console.error('Error rejoining room:', error);
+        callback({ success: false, error: error.message });
+      }
+    });
+
     // Start game
     socket.on('start-game', (callback) => {
       try {
@@ -96,8 +145,14 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Room not found' });
         }
 
-        if (socket.id !== room.hostId) {
-          return callback({ success: false, error: 'Only host can start game' });
+        // Only host can start initial game
+        if (room.gameState === 'waiting' && socket.id !== room.hostId) {
+          return callback({ success: false, error: 'Only host can start initial game' });
+        }
+
+        // After game ends or in resolution, anyone can start a new game
+        if (room.gameState === 'ended' || room.gameState === 'resolution') {
+          room.resetToWaiting();
         }
 
         if (!room.canStartGame()) {
@@ -156,11 +211,12 @@ export function setupSocketEvents(io) {
 
         callback({ success: true });
 
-        // If all clues submitted, move to discussion
+        // If all clues submitted, move directly to voting
         if (room.clues.length === room.players.size) {
           setTimeout(() => {
+            room.startVotingPhase();
             sendGameStateUpdate(io, roomCode, room);
-            startDiscussionTimer(io, roomCode, room);
+            startVotingTimer(io, roomCode, room);
           }, 1000);
         }
       } catch (error) {
@@ -284,14 +340,15 @@ export function setupSocketEvents(io) {
 
         const gameResult = room.endGame();
 
-        // Save to database
+        // Save to database and update cumulative scores
         const gameId = gameIdMap.get(roomCode);
         if (gameId) {
           endGame(gameId, room.currentRound);
 
-          // Save players
+          // Save players and update cumulative scores
           for (const playerScore of gameResult.finalScores) {
             addGamePlayer(gameId, playerScore.playerName, playerScore.score);
+            updatePlayerScore(playerScore.playerName, playerScore.score);
           }
 
           // Save rounds
@@ -302,9 +359,19 @@ export function setupSocketEvents(io) {
           gameIdMap.delete(roomCode);
         }
 
-        io.to(roomCode).emit('game-ended', gameResult);
+        // Get updated cumulative scores for all players
+        const cumulativeScores = gameResult.finalScores.map(ps => ({
+          playerName: ps.playerName,
+          gameScore: ps.score,
+          totalScore: getPlayerScore(ps.playerName)
+        }));
 
-        callback({ success: true, gameResult });
+        io.to(roomCode).emit('game-ended', {
+          ...gameResult,
+          cumulativeScores
+        });
+
+        callback({ success: true, gameResult, cumulativeScores });
       } catch (error) {
         console.error('Error ending game:', error);
         callback({ success: false, error: error.message });

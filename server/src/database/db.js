@@ -2,6 +2,9 @@
 const games = [];
 let nextGameId = 1;
 
+// Player cumulative scores storage (playerName -> totalScore)
+const playerScores = new Map();
+
 export function createGame(roomCode) {
   const gameId = nextGameId++;
   games.push({
@@ -86,4 +89,22 @@ export function getGameDetails(gameId) {
   };
 }
 
-export default { createGame, endGame, addGamePlayer, addGameRound, getRecentGames, getGameDetails };
+export function getPlayerScore(playerName) {
+  return playerScores.get(playerName) || 0;
+}
+
+export function updatePlayerScore(playerName, scoreToAdd) {
+  const currentScore = playerScores.get(playerName) || 0;
+  const newScore = currentScore + scoreToAdd;
+  playerScores.set(playerName, newScore);
+  return newScore;
+}
+
+export function getTopPlayers(limit = 10) {
+  return Array.from(playerScores.entries())
+    .map(([name, score]) => ({ name, score }))
+    .sort((a, b) => b.score - a.score)
+    .slice(0, limit);
+}
+
+export default { createGame, endGame, addGamePlayer, addGameRound, getRecentGames, getGameDetails, getPlayerScore, updatePlayerScore, getTopPlayers };

@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
@@ -9,7 +9,18 @@ export function LandingPage() {
   const [roomCode, setRoomCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [lastRoom, setLastRoom] = useState(null);
   const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check for last room in localStorage
+    const savedRoom = localStorage.getItem('lastRoomCode');
+    const savedName = localStorage.getItem('lastPlayerName');
+    if (savedRoom && savedName) {
+      setLastRoom({ roomCode: savedRoom, playerName: savedName });
+      setPlayerName(savedName);
+    }
+  }, []);
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) {
@@ -24,6 +35,10 @@ export function LandingPage() {
       socket.emit('create-room', playerName.trim(), (response) => {
         setLoading(false);
         if (response && response.success) {
+          // Save to localStorage
+          localStorage.setItem('lastRoomCode', response.roomCode);
+          localStorage.setItem('lastPlayerName', playerName.trim());
+
           navigate(`/room/${response.roomCode}`, {
             state: { player: response.player, players: [response.player] }
           });
@@ -78,6 +93,10 @@ export function LandingPage() {
       }, (response) => {
         setLoading(false);
         if (response && response.success) {
+          // Save to localStorage
+          localStorage.setItem('lastRoomCode', roomCode.trim());
+          localStorage.setItem('lastPlayerName', playerName.trim());
+
           navigate(`/room/${roomCode.trim()}`, {
             state: { player: response.player, players: response.gameState?.players || [] }
           });
@@ -111,13 +130,71 @@ export function LandingPage() {
     }
   };
 
+  const handleRejoinRoom = () => {
+    if (!lastRoom) return;
+
+    setLoading(true);
+    setError('');
+
+    const rejoinRoom = () => {
+      socket.emit('rejoin-room', {
+        roomCode: lastRoom.roomCode,
+        playerName: lastRoom.playerName
+      }, (response) => {
+        setLoading(false);
+        if (response && response.success) {
+          const gameState = response.gameState;
+
+          // Navigate to appropriate page based on game state
+          if (gameState.gameState === 'waiting') {
+            navigate(`/room/${lastRoom.roomCode}`, {
+              state: { player: response.player, players: gameState.players }
+            });
+          } else {
+            navigate(`/game/${lastRoom.roomCode}`, {
+              state: { player: response.player }
+            });
+          }
+        } else {
+          setError(response?.error || 'Failed to rejoin room');
+          // Clear saved room if rejoin failed
+          localStorage.removeItem('lastRoomCode');
+          localStorage.removeItem('lastPlayerName');
+          setLastRoom(null);
+        }
+      });
+    };
+
+    if (socket.connected) {
+      rejoinRoom();
+    } else {
+      const onConnect = () => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        rejoinRoom();
+      };
+
+      const onConnectError = (err) => {
+        socket.off('connect', onConnect);
+        socket.off('connect_error', onConnectError);
+        setLoading(false);
+        setError('Cannot connect to server. Please check if the server is running.');
+        console.error('Socket connection error:', err);
+      };
+
+      socket.on('connect', onConnect);
+      socket.on('connect_error', onConnectError);
+      socket.connect();
+    }
+  };
+
   return (
     <div className="min-h-screen flex items-center justify-center p-4">
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
           <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600 mb-2">
-            🦎 Chameleon
+            🦎 Girgit
           </h1>
           <p className="text-gray-600 text-lg">
             Find the imposter among your friends!
@@ -143,25 +220,22 @@ export function LandingPage() {
               />
             </div>
 
-            {/* Create Room Button */}
-            <Button
-              variant="primary"
-              onClick={handleCreateRoom}
-              disabled={loading || !playerName.trim()}
-              className="w-full text-lg"
-            >
-              {loading ? 'Creating...' : 'Create New Room'}
-            </Button>
-
-            {/* Divider */}
-            <div className="relative">
-              <div className="absolute inset-0 flex items-center">
-                <div className="w-full border-t border-gray-300"></div>
+            {/* Rejoin Last Room */}
+            {lastRoom && (
+              <div className="bg-blue-50 border border-blue-200 p-4 rounded-lg">
+                <p className="text-sm text-blue-800 mb-2">
+                  Last room: <span className="font-bold">{lastRoom.roomCode}</span>
+                </p>
+                <Button
+                  variant="primary"
+                  onClick={handleRejoinRoom}
+                  disabled={loading}
+                  className="w-full"
+                >
+                  {loading ? 'Rejoining...' : 'Rejoin Last Room'}
+                </Button>
               </div>
-              <div className="relative flex justify-center text-sm">
-                <span className="px-2 bg-white text-gray-500">OR</span>
-              </div>
-            </div>
+            )}
 
             {/* Join Room Section */}
             <div>
@@ -186,6 +260,26 @@ export function LandingPage() {
               className="w-full text-lg"
             >
               {loading ? 'Joining...' : 'Join Room'}
+            </Button>
+
+            {/* Divider */}
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <div className="w-full border-t border-gray-300"></div>
+              </div>
+              <div className="relative flex justify-center text-sm">
+                <span className="px-2 bg-white text-gray-500">OR</span>
+              </div>
+            </div>
+
+            {/* Create Room Button */}
+            <Button
+              variant="primary"
+              onClick={handleCreateRoom}
+              disabled={loading || !playerName.trim()}
+              className="w-full text-lg"
+            >
+              {loading ? 'Creating...' : 'Create New Room'}
             </Button>
 
             {/* Error Message */}
@@ -214,11 +308,11 @@ export function LandingPage() {
           </h3>
           <ol className="space-y-2 text-sm text-gray-600">
             <li>1. Create or join a room (min 3 players)</li>
-            <li>2. One player is secretly the Chameleon</li>
-            <li>3. Everyone sees a category and secret word (except the Chameleon)</li>
+            <li>2. One player is secretly the Girgit</li>
+            <li>3. Everyone sees a category and secret word (except the Girgit)</li>
             <li>4. Give one-word clues related to the word</li>
-            <li>5. Vote on who you think is the Chameleon</li>
-            <li>6. If caught, the Chameleon can guess the word to win!</li>
+            <li>5. Vote on who you think is the Girgit</li>
+            <li>6. If caught, the Girgit can guess the word to win!</li>
           </ol>
         </Card>
       </div>

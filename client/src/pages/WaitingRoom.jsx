@@ -62,6 +62,21 @@ export function WaitingRoom() {
     };
   }, [roomCode, navigate]);
 
+  // Prevent accidental page exit
+  useEffect(() => {
+    const handleBeforeUnload = (e) => {
+      e.preventDefault();
+      e.returnValue = '';
+      return '';
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+    };
+  }, []);
+
   const handleStartGame = () => {
     socket.emit('start-game', (response) => {
       if (!response.success) {
@@ -88,22 +103,22 @@ export function WaitingRoom() {
   };
 
   return (
-    <div className="min-h-screen p-4">
+    <div className="min-h-screen p-2 sm:p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-6">
-          <h1 className="text-4xl font-bold text-gray-800 mb-2">
+        <div className="text-center mb-4 sm:mb-6">
+          <h1 className="text-2xl sm:text-4xl font-bold text-gray-800 mb-2">
             Waiting Room
           </h1>
-          <div className="flex items-center justify-center gap-3">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-6 py-3 rounded-lg font-mono text-2xl font-bold tracking-wider">
+          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
+            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-mono text-xl sm:text-2xl font-bold tracking-wider">
               {roomCode}
             </div>
-            <Button variant="secondary" onClick={handleCopyCode}>
+            <Button variant="secondary" onClick={handleCopyCode} className="w-full sm:w-auto">
               Copy Code
             </Button>
           </div>
-          <p className="text-gray-600 mt-2">
+          <p className="text-sm sm:text-base text-gray-600 mt-2">
             Share this code with your friends to join!
           </p>
         </div>
@@ -173,19 +188,19 @@ export function WaitingRoom() {
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-gray-700">
             <div>
               <h4 className="font-semibold text-blue-600 mb-2">Setup Phase (5 seconds)</h4>
-              <p>One player is randomly selected as the Chameleon. A category and secret word are chosen.</p>
+              <p>One player is randomly selected as the Girgit. A category and secret word are chosen.</p>
             </div>
             <div>
               <h4 className="font-semibold text-blue-600 mb-2">Clue Phase (60 seconds)</h4>
-              <p>Each player gives a one-word clue. The Chameleon must blend in without knowing the word!</p>
+              <p>Each player gives a one-word clue. The Girgit must blend in without knowing the word!</p>
             </div>
             <div>
               <h4 className="font-semibold text-blue-600 mb-2">Discussion Phase (30 seconds)</h4>
-              <p>Discuss and strategize to figure out who the Chameleon is.</p>
+              <p>Discuss and strategize to figure out who the Girgit is.</p>
             </div>
             <div>
               <h4 className="font-semibold text-blue-600 mb-2">Voting Phase (30 seconds)</h4>
-              <p>Vote on who you think is the Chameleon. If caught, they can guess the word to win!</p>
+              <p>Vote on who you think is the Girgit. If caught, they can guess the word to win!</p>
             </div>
           </div>
         </Card>
