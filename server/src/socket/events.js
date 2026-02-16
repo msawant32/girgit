@@ -211,12 +211,29 @@ export function setupSocketEvents(io) {
 
         callback({ success: true });
 
-        // If all clues submitted, move directly to voting
+        // If all clues submitted, wait 10 seconds then move to voting
         if (room.clues.length === room.players.size) {
-          setTimeout(() => {
-            room.startVotingPhase();
-            sendGameStateUpdate(io, roomCode, room);
-            startVotingTimer(io, roomCode, room);
+          // Set a 10-second countdown before voting
+          room.timerEndTime = Date.now() + 10000;
+          room.gameState = 'clue-complete';
+
+          io.to(roomCode).emit('game-state-update', {
+            gameState: 'clue-complete',
+            players: room.getPlayers(),
+            remainingTime: 10
+          });
+
+          // Start countdown timer
+          const countdownInterval = setInterval(() => {
+            const remaining = room.getRemainingTime();
+            io.to(roomCode).emit('timer-update', { remainingTime: remaining });
+
+            if (remaining <= 0) {
+              clearInterval(countdownInterval);
+              room.startVotingPhase();
+              sendGameStateUpdate(io, roomCode, room);
+              startVotingTimer(io, roomCode, room);
+            }
           }, 1000);
         }
       } catch (error) {
