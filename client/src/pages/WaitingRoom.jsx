@@ -4,6 +4,7 @@ import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { PlayerList } from '../components/PlayerList';
 import { Chat } from '../components/Chat';
+import { Logo } from '../components/Logo';
 import socket from '../utils/socket';
 
 export function WaitingRoom() {
@@ -93,11 +94,6 @@ export function WaitingRoom() {
     });
   };
 
-  const handleCopyCode = () => {
-    navigator.clipboard.writeText(roomCode);
-    alert('Room code copied to clipboard!');
-  };
-
   const handleLeaveRoom = () => {
     navigate('/');
   };
@@ -106,21 +102,46 @@ export function WaitingRoom() {
     <div className="min-h-screen p-2 sm:p-4">
       <div className="max-w-6xl mx-auto">
         {/* Header */}
-        <div className="text-center mb-4 sm:mb-6">
-          <h1 className="text-2xl sm:text-4xl font-bold text-gray-800 mb-2">
-            Waiting Room
-          </h1>
-          <div className="flex flex-col sm:flex-row items-center justify-center gap-2 sm:gap-3">
-            <div className="bg-gradient-to-r from-blue-600 to-purple-600 text-white px-4 sm:px-6 py-2 sm:py-3 rounded-lg font-mono text-xl sm:text-2xl font-bold tracking-wider">
-              {roomCode}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 p-3 sm:p-4 mb-3 sm:mb-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Spacer */}
+            <div className="flex-1 hidden sm:block"></div>
+
+            {/* Centered Clickable Logo */}
+            <div className="flex-shrink-0">
+              <Logo size="medium" clickable={true} onClick={() => navigate('/')} />
             </div>
-            <Button variant="secondary" onClick={handleCopyCode} className="w-full sm:w-auto">
-              Copy Code
-            </Button>
+
+            {/* Right-aligned Room Info */}
+            <div className="flex-1 flex items-center justify-end gap-3 text-right">
+              <div className="flex flex-col items-end gap-2">
+                <div className="text-sm font-semibold text-gray-600">Waiting Room</div>
+                <div className="flex flex-col items-end gap-1">
+                  <div className="text-xs text-gray-500">Room number</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xl sm:text-2xl font-bold text-purple-700">
+                      {roomCode}
+                    </span>
+                    <a
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigator.clipboard.writeText(roomCode);
+                      }}
+                      href="#"
+                      className="text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+                    >
+                      copy
+                    </a>
+                  </div>
+                </div>
+              </div>
+            </div>
           </div>
-          <p className="text-sm sm:text-base text-gray-600 mt-2">
-            Share this code with your friends to join!
-          </p>
+          <div className="mt-3 text-center">
+            <p className="text-sm text-gray-600">
+              Share this code with your friends!
+            </p>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

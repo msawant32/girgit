@@ -5,7 +5,7 @@ export class GameRoom {
     this.roomCode = roomCode;
     this.hostId = hostId;
     this.players = new Map(); // socketId -> player object
-    this.gameState = 'waiting'; // waiting, setup, clue, discussion, voting, resolution
+    this.gameState = 'waiting'; // waiting, setup, clue, discussion, voting, voting-tiebreak, resolution
     this.currentRound = 0;
     this.chameleonId = null;
     this.category = null;
@@ -17,6 +17,7 @@ export class GameRoom {
     this.timer = null;
     this.timerEndTime = null;
     this.roundHistory = [];
+    this.tiebreakAttempted = false;
   }
 
   addPlayer(socketId, playerName) {
@@ -65,6 +66,7 @@ export class GameRoom {
     this.clues = [];
     this.votes.clear();
     this.currentPlayerIndex = 0;
+    this.tiebreakAttempted = false;
 
     // Select random chameleon
     const playerIds = Array.from(this.players.keys());
@@ -84,7 +86,7 @@ export class GameRoom {
 
   startCluePhase() {
     this.gameState = 'clue';
-    this.timerEndTime = Date.now() + 600000; // 10 minutes
+    this.timerEndTime = Date.now() + 120000; // 2 minutes
   }
 
   submitClue(playerId, clue) {
@@ -112,50 +114,76 @@ export class GameRoom {
 
   startDiscussionPhase() {
     this.gameState = 'discussion';
-    this.timerEndTime = Date.now() + 600000; // 10 minutes
+    this.timerEndTime = Date.now() + 120000; // 2 minutes
   }
 
   startVotingPhase() {
     this.gameState = 'voting';
     this.votes.clear();
-    this.timerEndTime = Date.now() + 600000; // 10 minutes
+    this.timerEndTime = Date.now() + 120000; // 2 minutes
   }
 
   submitVote(voterId, votedForId) {
-    if (this.gameState !== 'voting') return false;
+    if (this.gameState !== 'voting' && this.gameState !== 'voting-complete' && this.gameState !== 'voting-tiebreak') return false;
     if (!this.players.has(voterId) || !this.players.has(votedForId)) return false;
     if (voterId === votedForId) return false; // Can't vote for yourself
 
     this.votes.set(voterId, votedForId);
 
-    // If all players voted, move to resolution
-    if (this.votes.size === this.players.size) {
-      this.resolveRound();
-    }
-
     return true;
   }
 
   resolveRound() {
-    this.gameState = 'resolution';
-
     // Count votes
     const voteCounts = new Map();
     for (const votedForId of this.votes.values()) {
       voteCounts.set(votedForId, (voteCounts.get(votedForId) || 0) + 1);
     }
 
-    // Find player with most votes
+    // Find player(s) with most votes
     let maxVotes = 0;
-    let suspectedChameleon = null;
+    let playersWithMaxVotes = [];
     for (const [playerId, count] of voteCounts.entries()) {
       if (count > maxVotes) {
         maxVotes = count;
-        suspectedChameleon = playerId;
+        playersWithMaxVotes = [playerId];
+      } else if (count === maxVotes) {
+        playersWithMaxVotes.push(playerId);
       }
     }
 
-    const chameleonCaught = suspectedChameleon === this.chameleonId;
+    // Check for tie
+    const isTie = playersWithMaxVotes.length > 1 || playersWithMaxVotes.length === 0;
+
+    // If tie and haven't attempted tiebreak yet, initiate tiebreak
+    if (isTie && !this.tiebreakAttempted) {
+      return {
+        isTie: true,
+        needsTiebreak: true,
+        playersWithMaxVotes,
+        maxVotes,
+        voteCounts: Array.from(voteCounts.entries()).map(([id, count]) => ({
+          playerId: id,
+          playerName: this.players.get(id)?.name,
+          votes: count
+        }))
+      };
+    }
+
+    // If tie after tiebreak or no tie, resolve normally
+    this.gameState = 'resolution';
+
+    let suspectedChameleon = null;
+    let chameleonCaught = false;
+
+    if (isTie && this.tiebreakAttempted) {
+      // Chameleon wins on tie after tiebreak
+      suspectedChameleon = null;
+      chameleonCaught = false;
+    } else {
+      suspectedChameleon = playersWithMaxVotes[0];
+      chameleonCaught = suspectedChameleon === this.chameleonId;
+    }
 
     // Save round result (before updating scores)
     const roundResult = {

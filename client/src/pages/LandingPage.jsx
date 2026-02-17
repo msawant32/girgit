@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
+import { Logo } from '../components/Logo';
 import socket from '../utils/socket';
 
 export function LandingPage() {
@@ -145,15 +146,14 @@ export function LandingPage() {
         if (response && response.success) {
           const gameState = response.gameState;
 
-          // Navigate to appropriate page based on game state
+          // Always navigate to game board if game exists
           if (gameState.gameState === 'waiting') {
             navigate(`/room/${lastRoom.roomCode}`, {
               state: { player: response.player, players: gameState.players }
             });
           } else {
-            navigate(`/game/${lastRoom.roomCode}`, {
-              state: { player: response.player }
-            });
+            // Navigate to game board for in-progress game
+            navigate(`/game/${lastRoom.roomCode}`);
           }
         } else {
           setError(response?.error || 'Failed to rejoin room');
@@ -193,12 +193,19 @@ export function LandingPage() {
       <div className="w-full max-w-md">
         {/* Header */}
         <div className="text-center mb-8">
-          <h1 className="text-5xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600 mb-2">
-            🦎 Girgit
-          </h1>
-          <p className="text-gray-600 text-lg">
-            Find the imposter among your friends!
-          </p>
+          <div className="bg-gradient-to-br from-green-50 to-blue-50 rounded-2xl p-6 border-2 border-green-200 shadow-lg mb-6">
+            <Logo size="xlarge" />
+            <p className="text-gray-700 text-lg mt-4 font-medium">
+              Find the imposter among your friends!
+            </p>
+            <div className="flex items-center justify-center gap-2 mt-2 text-sm text-gray-600">
+              <span>🎯 Deduction</span>
+              <span>•</span>
+              <span>🎭 Deception</span>
+              <span>•</span>
+              <span>🎉 Fun!</span>
+            </div>
+          </div>
         </div>
 
         {/* Main Card */}

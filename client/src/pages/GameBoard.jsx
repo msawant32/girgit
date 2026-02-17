@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 import { PlayerList } from '../components/PlayerList';
 import { Chat } from '../components/Chat';
+import { Logo } from '../components/Logo';
 import socket from '../utils/socket';
 
 // Secret words organized by category
@@ -54,6 +55,7 @@ export function GameBoard() {
   const [roundResult, setRoundResult] = useState(null);
   const [chameleonGuess, setChameleonGuess] = useState('');
   const [cumulativeScores, setCumulativeScores] = useState([]);
+  const [startingNewGame, setStartingNewGame] = useState(false);
 
   useEffect(() => {
     setCurrentPlayer(socket.id);
@@ -73,6 +75,7 @@ export function GameBoard() {
       setVotes(new Map());
       setRoundResult(null);
       setChameleonGuess('');
+      setStartingNewGame(false);
     }
 
     function onGameStateUpdate(data) {
@@ -104,6 +107,12 @@ export function GameBoard() {
       if (data.votes) {
         setVotes(new Map(data.votes));
       }
+    }
+
+    function onVotingTiebreak(data) {
+      setGameState('voting-tiebreak');
+      setRemainingTime(data.remainingTime);
+      setMyVote(null); // Allow revoting
     }
 
     function onRoundResolved(data) {
@@ -152,6 +161,7 @@ export function GameBoard() {
     socket.on('timer-update', onTimerUpdate);
     socket.on('clue-submitted', onClueSubmitted);
     socket.on('vote-submitted', onVoteSubmitted);
+    socket.on('voting-tiebreak', onVotingTiebreak);
     socket.on('round-resolved', onRoundResolved);
     socket.on('chameleon-guessed', onChameleonGuessed);
     socket.on('round-started', onRoundStarted);
@@ -165,6 +175,7 @@ export function GameBoard() {
       socket.off('timer-update', onTimerUpdate);
       socket.off('clue-submitted', onClueSubmitted);
       socket.off('vote-submitted', onVoteSubmitted);
+      socket.off('voting-tiebreak', onVotingTiebreak);
       socket.off('round-resolved', onRoundResolved);
       socket.off('chameleon-guessed', onChameleonGuessed);
       socket.off('round-started', onRoundStarted);
@@ -189,23 +200,40 @@ export function GameBoard() {
     };
   }, []);
 
-  const handleSubmitClue = () => {
-    if (!myClue.trim() || clueSubmitted) return;
+  const handleSubmitClue = (onBehalfOf = null) => {
+    const clueText = myClue.trim();
+    if (!clueText) return;
+    if (!onBehalfOf && clueSubmitted) return;
 
-    socket.emit('submit-clue', { clue: myClue.trim() }, (response) => {
+    const clueData = onBehalfOf
+      ? { clue: clueText, onBehalfOf }
+      : { clue: clueText };
+
+    socket.emit('submit-clue', clueData, (response) => {
       if (response.success) {
-        setClueSubmitted(true);
+        if (!onBehalfOf) {
+          setClueSubmitted(true);
+        } else {
+          // Only clear input when submitting on behalf of others
+          setMyClue('');
+        }
       }
     });
   };
 
-  const handleSubmitVote = (playerId) => {
-    if (playerId === currentPlayer) return;
+  const handleSubmitVote = (playerId, onBehalfOf = null) => {
+    if (playerId === currentPlayer && !onBehalfOf) return;
 
     // Allow changing vote during voting-complete phase
-    socket.emit('submit-vote', { votedForId: playerId }, (response) => {
+    const voteData = onBehalfOf
+      ? { votedForId: playerId, onBehalfOf }
+      : { votedForId: playerId };
+
+    socket.emit('submit-vote', voteData, (response) => {
       if (response.success) {
-        setMyVote(playerId);
+        if (!onBehalfOf) {
+          setMyVote(playerId);
+        }
       }
     });
   };
@@ -237,10 +265,13 @@ export function GameBoard() {
   };
 
   const handleNewGame = () => {
+    setStartingNewGame(true);
     socket.emit('start-game', (response) => {
       if (!response.success) {
         console.error('Failed to start new game');
+        setStartingNewGame(false);
       }
+      // Will be reset when game starts via onRoundUpdate
     });
   };
 
@@ -266,6 +297,8 @@ export function GameBoard() {
         return 'Vote for the Girgit';
       case 'voting-complete':
         return 'Voting Complete - Discuss!';
+      case 'voting-tiebreak':
+        return 'TIE! Vote Again!';
       case 'resolution':
         return 'Round Results';
       case 'ended':
@@ -278,24 +311,43 @@ export function GameBoard() {
   return (
     <div className="min-h-screen p-2 sm:p-4">
       <div className="max-w-7xl mx-auto">
-        {/* Header with Home Button and Logo */}
-        <div className="flex items-center gap-3 sm:gap-4 mb-3 sm:mb-4">
-          <button
-            onClick={() => navigate('/')}
-            className="flex items-center gap-2 px-4 py-3 bg-gradient-to-r from-blue-500 to-purple-500 hover:from-blue-600 hover:to-purple-600 text-white rounded-lg transition-colors shadow-md"
-          >
-            <span className="text-2xl">🏠</span>
-            <span className="text-base font-semibold hidden sm:inline">Home</span>
-          </button>
+        {/* Header with Centered Logo and Right-aligned Room Info */}
+        <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 p-3 sm:p-4 mb-3 sm:mb-4">
+          <div className="flex items-center justify-between gap-4">
+            {/* Spacer */}
+            <div className="flex-1 hidden sm:block"></div>
 
-          <div className="flex-1 bg-white rounded-lg shadow-sm border border-gray-200 p-3">
-            <div className="flex items-center justify-between">
-              <div className="text-2xl sm:text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-green-600 to-blue-600">
-                🦎 Girgit
-              </div>
-              <div className="text-right">
-                <div className="text-lg sm:text-xl font-bold text-gray-800">Round {currentRound}</div>
-                <div className="text-xs sm:text-sm text-gray-600">{getPhaseTitle()}</div>
+            {/* Centered Clickable Logo */}
+            <div className="flex-shrink-0">
+              <Logo size="medium" clickable={true} onClick={() => navigate('/')} />
+            </div>
+
+            {/* Right-aligned Round Info & Room Code */}
+            <div className="flex-1 flex items-center justify-end gap-3 text-right">
+              <div className="flex flex-col items-end gap-2">
+                {/* Phase Info at top */}
+                <div className="flex flex-col items-end">
+                  <div className="text-xs text-gray-600">{getPhaseTitle()}</div>
+                </div>
+                {/* Room Info below */}
+                <div className="flex flex-col items-end gap-1">
+                  <div className="text-xs text-gray-500">Room number</div>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xl sm:text-2xl font-bold text-purple-700">
+                      {roomCode}
+                    </span>
+                    <a
+                      onClick={(e) => {
+                        e.preventDefault();
+                        navigator.clipboard.writeText(roomCode);
+                      }}
+                      href="#"
+                      className="text-blue-600 hover:text-blue-800 underline text-sm font-medium"
+                    >
+                      copy
+                    </a>
+                  </div>
+                </div>
               </div>
             </div>
           </div>
@@ -397,7 +449,7 @@ export function GameBoard() {
                     />
                     <Button
                       variant="primary"
-                      onClick={handleSubmitClue}
+                      onClick={() => handleSubmitClue()}
                       disabled={!myClue.trim() || clueSubmitted}
                       className="w-full sm:w-auto"
                     >
@@ -418,6 +470,43 @@ export function GameBoard() {
                             <div className="text-xs text-gray-600 truncate">{clue.playerName}</div>
                             <div className="text-sm sm:text-base font-semibold truncate">{clue.clue}</div>
                           </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* Host controls - submit clues on behalf of players */}
+                  {isHost && clues.length < players.length && (
+                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
+                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
+                        <p className="text-sm text-orange-700 mb-3">
+                          Submit clues on behalf of players who haven't submitted:
+                        </p>
+                        {players.filter(p => !clues.find(c => c.playerId === p.id)).map((player) => (
+                          <details key={player.id} className="mb-2">
+                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
+                              Submit clue for {player.name}
+                            </summary>
+                            <div className="mt-2 flex gap-2">
+                              <input
+                                type="text"
+                                value={myClue}
+                                onChange={(e) => setMyClue(e.target.value)}
+                                placeholder="Enter clue..."
+                                className="input flex-1 text-sm"
+                                maxLength={30}
+                                onKeyPress={(e) => e.key === 'Enter' && handleSubmitClue(player.id)}
+                              />
+                              <button
+                                onClick={() => handleSubmitClue(player.id)}
+                                disabled={!myClue.trim()}
+                                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors"
+                              >
+                                Submit
+                              </button>
+                            </div>
+                          </details>
                         ))}
                       </div>
                     </div>
@@ -505,6 +594,36 @@ export function GameBoard() {
                       Vote submitted! Waiting for others...
                     </div>
                   )}
+
+                  {/* Host voting on behalf of others */}
+                  {isHost && votes.size < players.length && (
+                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
+                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
+                        <p className="text-sm text-orange-700 mb-3">
+                          Vote on behalf of players who haven't voted:
+                        </p>
+                        {players.filter(p => !votes.has(p.id)).map((player) => (
+                          <details key={player.id} className="mb-2">
+                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
+                              Vote for {player.name}
+                            </summary>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              {players.filter(p => p.id !== player.id).map((target) => (
+                                <button
+                                  key={target.id}
+                                  onClick={() => handleSubmitVote(target.id, player.id)}
+                                  className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs font-semibold transition-colors"
+                                >
+                                  {target.name}
+                                </button>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               </Card>
             )}
@@ -532,6 +651,76 @@ export function GameBoard() {
                   </div>
 
                   {/* Allow re-voting */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {players.filter(p => p.id !== currentPlayer).map((player) => (
+                      <Button
+                        key={player.id}
+                        variant={myVote === player.id ? 'success' : 'secondary'}
+                        onClick={() => handleSubmitVote(player.id)}
+                        className="w-full text-sm py-2"
+                      >
+                        {player.name}
+                        {myVote === player.id && ' ✓'}
+                      </Button>
+                    ))}
+                  </div>
+
+                  {/* Host voting on behalf of others during discussion */}
+                  {isHost && votes.size < players.length && (
+                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
+                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
+                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
+                        <p className="text-sm text-orange-700 mb-3">
+                          Vote on behalf of players who haven't voted:
+                        </p>
+                        {players.filter(p => !votes.has(p.id)).map((player) => (
+                          <details key={player.id} className="mb-2">
+                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
+                              Vote for {player.name}
+                            </summary>
+                            <div className="mt-2 grid grid-cols-2 gap-2">
+                              {players.filter(p => p.id !== player.id).map((target) => (
+                                <button
+                                  key={target.id}
+                                  onClick={() => handleSubmitVote(target.id, player.id)}
+                                  className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs font-semibold transition-colors"
+                                >
+                                  {target.name}
+                                </button>
+                              ))}
+                            </div>
+                          </details>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </Card>
+            )}
+
+            {/* Voting Tiebreak */}
+            {gameState === 'voting-tiebreak' && (
+              <Card title="🔄 TIE! Vote Again!">
+                <div className="space-y-4 text-center">
+                  <div className="bg-red-50 border-2 border-red-300 p-4 rounded-lg">
+                    <p className="text-lg sm:text-xl font-bold text-red-800 mb-2">
+                      ⚠️ No clear decision!
+                    </p>
+                    <p className="text-sm sm:text-base text-red-700">
+                      There's a tie in voting. Vote again to break the tie!
+                    </p>
+                    <p className="text-lg font-bold text-red-900 mt-2">
+                      {remainingTime} seconds remaining
+                    </p>
+                  </div>
+
+                  <div className="bg-orange-50 p-3 rounded-lg border border-orange-200">
+                    <p className="text-sm font-semibold text-orange-800">
+                      ⚡ If still tied after this vote, the Girgit wins automatically!
+                    </p>
+                  </div>
+
+                  {/* Tiebreak voting */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
                     {players.filter(p => p.id !== currentPlayer).map((player) => (
                       <Button
@@ -691,11 +880,12 @@ export function GameBoard() {
                     <Button
                       variant="success"
                       onClick={handleNewGame}
+                      disabled={startingNewGame}
                       className="w-full"
                     >
-                      Start New Game
+                      {startingNewGame ? 'Starting Game...' : 'Start New Game'}
                     </Button>
- 
+
                   </div>
                 </div>
               </Card>

@@ -74,3 +74,26 @@
 .animate-marquee {
   animation: marquee 30s linear infinite;
 }
+
+@keyframes color-shift {
+  0% {
+    filter: hue-rotate(0deg) brightness(1.1);
+  }
+  25% {
+    filter: hue-rotate(90deg) brightness(1.2);
+  }
+  50% {
+    filter: hue-rotate(180deg) brightness(1.1);
+  }
+  75% {
+    filter: hue-rotate(270deg) brightness(1.2);
+  }
+  100% {
+    filter: hue-rotate(360deg) brightness(1.1);
+  }
+}
+
+.chameleon-icon {
+  animation: color-shift 4s ease-in-out infinite;
+  display: inline-block;
+}

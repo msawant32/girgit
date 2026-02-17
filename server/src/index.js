@@ -11,7 +11,14 @@ const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingTimeout: 60000,
+  pingInterval: 25000,
+  upgradeTimeout: 30000,
+  maxHttpBufferSize: 1e8,
+  allowUpgrades: true,
+  transports: ['websocket', 'polling'],
+  connectTimeout: 45000
 });
 
 app.use(cors());

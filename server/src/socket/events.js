@@ -127,7 +127,39 @@ export function setupSocketEvents(io) {
           players: room.getPlayers()
         });
 
-        callback({ success: true, player, gameState: room.getGameState(), rejoined: true });
+        // Send full game state for rejoining player
+        const fullGameState = room.getGameState();
+        callback({ success: true, player, gameState: fullGameState, rejoined: true });
+
+        // If game is in progress, send round update to rejoining player
+        // Add delay to ensure client has time to navigate and set up listeners
+        if (room.gameState !== 'waiting' && room.gameState !== 'ended') {
+          setTimeout(() => {
+            const isChameleon = player.id === room.chameleonId;
+            socket.emit('round-update', {
+              gameState: room.gameState,
+              currentRound: room.currentRound,
+              category: room.category,
+              secretWord: isChameleon ? null : room.secretWord,
+              isChameleon,
+              players: room.getPlayers(),
+              remainingTime: room.getRemainingTime()
+            });
+
+            // Send existing clues
+            room.clues.forEach(clue => {
+              socket.emit('clue-submitted', clue);
+            });
+
+            // Send current votes
+            if (room.votes.size > 0) {
+              socket.emit('vote-submitted', {
+                votes: Array.from(room.votes.entries())
+              });
+            }
+          }, 500); // 500ms delay to allow client to navigate and set up listeners
+        }
+
         console.log(`${playerName} rejoined room ${roomCode}`);
       } catch (error) {
         console.error('Error rejoining room:', error);
@@ -170,11 +202,11 @@ export function setupSocketEvents(io) {
           currentRound: room.currentRound
         });
 
-        // Start setup phase
+        // Start setup phase immediately
         setTimeout(() => {
           room.startCluePhase();
           sendRoundUpdate(io, roomCode, room);
-        }, 5000);
+        }, 1000);
 
         callback({ success: true });
         console.log(`Game started in room ${roomCode}`);
@@ -185,7 +217,7 @@ export function setupSocketEvents(io) {
     });
 
     // Submit clue
-    socket.on('submit-clue', ({ clue }, callback) => {
+    socket.on('submit-clue', ({ clue, onBehalfOf }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -194,7 +226,13 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Invalid game state' });
         }
 
-        const success = room.submitClue(socket.id, clue);
+        // If submitting on behalf of someone else, verify host
+        const playerId = onBehalfOf || socket.id;
+        if (onBehalfOf && socket.id !== room.hostId) {
+          return callback({ success: false, error: 'Only host can submit clues on behalf of others' });
+        }
+
+        const success = room.submitClue(playerId, clue);
 
         if (!success) {
           return callback({ success: false, error: 'Could not submit clue' });
@@ -202,8 +240,8 @@ export function setupSocketEvents(io) {
 
         // Broadcast clue to all players
         io.to(roomCode).emit('clue-submitted', {
-          playerId: socket.id,
-          playerName: room.players.get(socket.id).name,
+          playerId: playerId,
+          playerName: room.players.get(playerId).name,
           clue,
           cluesCount: room.clues.length,
           totalPlayers: room.players.size
@@ -225,6 +263,12 @@ export function setupSocketEvents(io) {
 
           // Start countdown timer
           const countdownInterval = setInterval(() => {
+            // Only send updates if still in clue-complete phase
+            if (room.gameState !== 'clue-complete') {
+              clearInterval(countdownInterval);
+              return;
+            }
+
             const remaining = room.getRemainingTime();
             io.to(roomCode).emit('timer-update', { remainingTime: remaining });
 
@@ -243,16 +287,22 @@ export function setupSocketEvents(io) {
     });
 
     // Submit vote
-    socket.on('submit-vote', ({ votedForId }, callback) => {
+    socket.on('submit-vote', ({ votedForId, onBehalfOf }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
 
-        if (!room || (room.gameState !== 'voting' && room.gameState !== 'voting-complete')) {
+        if (!room || (room.gameState !== 'voting' && room.gameState !== 'voting-complete' && room.gameState !== 'voting-tiebreak')) {
           return callback({ success: false, error: 'Invalid game state' });
         }
 
-        const success = room.submitVote(socket.id, votedForId);
+        // If voting on behalf of someone else, verify host
+        const voterId = onBehalfOf || socket.id;
+        if (onBehalfOf && socket.id !== room.hostId) {
+          return callback({ success: false, error: 'Only host can vote on behalf of others' });
+        }
+
+        const success = room.submitVote(voterId, votedForId);
 
         if (!success) {
           return callback({ success: false, error: 'Invalid vote' });
@@ -267,28 +317,37 @@ export function setupSocketEvents(io) {
 
         callback({ success: true });
 
-        // If all votes submitted, start 1-minute discussion before resolving
-        if (room.votes.size === room.players.size) {
+        // If all votes submitted, start 2-minute discussion before resolving
+        if (room.votes.size === room.players.size && room.gameState === 'voting') {
           room.gameState = 'voting-complete';
-          room.timerEndTime = Date.now() + 60000; // 1 minute
+          room.timerEndTime = Date.now() + 120000; // 2 minutes
 
           io.to(roomCode).emit('game-state-update', {
             gameState: 'voting-complete',
             players: room.getPlayers(),
-            remainingTime: 60,
+            remainingTime: 120,
             votes: Array.from(room.votes.entries())
           });
 
           // Start countdown timer
           const discussInterval = setInterval(() => {
+            // Only send updates if still in voting-complete phase
+            if (room.gameState !== 'voting-complete') {
+              clearInterval(discussInterval);
+              return;
+            }
+
             const remaining = room.getRemainingTime();
             io.to(roomCode).emit('timer-update', { remainingTime: remaining });
 
             if (remaining <= 0) {
               clearInterval(discussInterval);
-              resolveRound(io, roomCode, room);
+              handleVotingComplete(io, roomCode, room);
             }
           }, 1000);
+        } else if (room.votes.size === room.players.size && room.gameState === 'voting-tiebreak') {
+          // Tiebreak voting complete, resolve immediately
+          resolveRound(io, roomCode, room);
         }
       } catch (error) {
         console.error('Error submitting vote:', error);
@@ -523,53 +582,125 @@ function sendGameStateUpdate(io, roomCode, room) {
 
 function startClueTimer(io, roomCode, room) {
   const interval = setInterval(() => {
+    // Only send updates if still in clue phase
+    if (room.gameState !== 'clue') {
+      clearInterval(interval);
+      return;
+    }
+
     const remaining = room.getRemainingTime();
     io.to(roomCode).emit('timer-update', { remainingTime: remaining });
 
     if (remaining <= 0) {
       clearInterval(interval);
-      if (room.gameState === 'clue') {
-        room.startDiscussionPhase();
-        sendGameStateUpdate(io, roomCode, room);
-        startDiscussionTimer(io, roomCode, room);
-      }
+      room.startDiscussionPhase();
+      sendGameStateUpdate(io, roomCode, room);
+      startDiscussionTimer(io, roomCode, room);
     }
   }, 1000);
 }
 
 function startDiscussionTimer(io, roomCode, room) {
   const interval = setInterval(() => {
+    // Only send updates if still in discussion phase
+    if (room.gameState !== 'discussion') {
+      clearInterval(interval);
+      return;
+    }
+
     const remaining = room.getRemainingTime();
     io.to(roomCode).emit('timer-update', { remainingTime: remaining });
 
     if (remaining <= 0) {
       clearInterval(interval);
-      if (room.gameState === 'discussion') {
-        room.startVotingPhase();
-        sendGameStateUpdate(io, roomCode, room);
-        startVotingTimer(io, roomCode, room);
-      }
+      room.startVotingPhase();
+      sendGameStateUpdate(io, roomCode, room);
+      startVotingTimer(io, roomCode, room);
     }
   }, 1000);
 }
 
 function startVotingTimer(io, roomCode, room) {
   const interval = setInterval(() => {
+    // Only send updates if still in voting phase
+    if (room.gameState !== 'voting') {
+      clearInterval(interval);
+      return;
+    }
+
     const remaining = room.getRemainingTime();
     io.to(roomCode).emit('timer-update', { remainingTime: remaining });
 
     if (remaining <= 0) {
       clearInterval(interval);
-      if (room.gameState === 'voting' && room.votes.size < room.players.size) {
+      if (room.votes.size < room.players.size) {
         resolveRound(io, roomCode, room);
       }
     }
   }, 1000);
 }
 
+function handleVotingComplete(io, roomCode, room) {
+  const result = room.resolveRound();
+
+  // Check if we need a tiebreak
+  if (result.needsTiebreak) {
+    room.gameState = 'voting-tiebreak';
+    room.tiebreakAttempted = true;
+    room.timerEndTime = Date.now() + 120000; // 2 minutes for tiebreak
+
+    io.to(roomCode).emit('voting-tiebreak', {
+      playersWithMaxVotes: result.playersWithMaxVotes,
+      maxVotes: result.maxVotes,
+      voteCounts: result.voteCounts,
+      remainingTime: 120
+    });
+
+    // Start tiebreak timer
+    const tiebreakInterval = setInterval(() => {
+      // Only send updates if still in tiebreak phase
+      if (room.gameState !== 'voting-tiebreak') {
+        clearInterval(tiebreakInterval);
+        return;
+      }
+
+      const remaining = room.getRemainingTime();
+      io.to(roomCode).emit('timer-update', { remainingTime: remaining });
+
+      if (remaining <= 0) {
+        clearInterval(tiebreakInterval);
+        resolveRound(io, roomCode, room);
+      }
+    }, 1000);
+  } else {
+    // No tie, resolve normally
+    finalizeRound(io, roomCode, room, result);
+  }
+}
+
 function resolveRound(io, roomCode, room) {
   const result = room.resolveRound();
 
+  // If still has tiebreak flag, it's the final resolution
+  if (result.isTie && room.tiebreakAttempted) {
+    // Chameleon wins on tie
+    room.awardPointsNoCatch();
+    io.to(roomCode).emit('round-resolved', {
+      chameleonCaught: false,
+      chameleonId: room.chameleonId,
+      suspectedChameleon: null,
+      category: room.category,
+      secretWord: room.secretWord,
+      scores: room.getGameState().scores,
+      tieResult: true,
+      message: 'No clear decision - Girgit wins!'
+    });
+  } else {
+    finalizeRound(io, roomCode, room, result);
+  }
+}
+
+function finalizeRound(io, roomCode, room, result) {
   // If chameleon not caught, award points
   if (!result.chameleonCaught) {
     room.awardPointsNoCatch();
