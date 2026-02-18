@@ -57,6 +57,13 @@ export function GameBoard() {
   const [cumulativeScores, setCumulativeScores] = useState([]);
   const [startingNewGame, setStartingNewGame] = useState(false);
 
+  // Update currentPlayer on reconnect
+  useEffect(() => {
+    const onConnect = () => setCurrentPlayer(socket.id);
+    socket.on('connect', onConnect);
+    return () => socket.off('connect', onConnect);
+  }, []);
+
   useEffect(() => {
     setCurrentPlayer(socket.id);
 
@@ -300,7 +307,7 @@ export function GameBoard() {
       case 'voting-tiebreak':
         return 'TIE! Vote Again!';
       case 'resolution':
-        return 'Round Results';
+        return 'Results';
       case 'ended':
         return 'Game Complete!';
       default:
@@ -317,9 +324,12 @@ export function GameBoard() {
             {/* Spacer */}
             <div className="flex-1 hidden sm:block"></div>
 
-            {/* Centered Clickable Logo */}
-            <div className="flex-shrink-0">
+            {/* Centered Clickable Logo + Timer */}
+            <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <Logo size="medium" clickable={true} onClick={() => navigate('/')} />
+              {remainingTime > 0 && (
+                <Timer seconds={remainingTime} />
+              )}
             </div>
 
             {/* Right-aligned Round Info & Room Code */}
@@ -327,7 +337,7 @@ export function GameBoard() {
               <div className="flex flex-col items-end gap-2">
                 {/* Phase Info at top */}
                 <div className="flex flex-col items-end">
-                  <div className="text-xs text-gray-600">{getPhaseTitle()}</div>
+                  <div className="text-xs font-bold text-gray-700">{getPhaseTitle()}</div>
                 </div>
                 {/* Room Info below */}
                 <div className="flex flex-col items-end gap-1">
@@ -353,40 +363,9 @@ export function GameBoard() {
           </div>
         </div>
 
-        {/* Scrolling Secret Word List - Show only words from current category */}
-        {category && WORDS_BY_CATEGORY[category] && (
-          <div className="mb-4 overflow-hidden bg-gradient-to-r from-purple-100 via-blue-100 to-purple-100 rounded-lg border-2 border-purple-300 shadow-sm">
-            <div className="py-2">
-              <div className="flex animate-marquee whitespace-nowrap">
-                <span className="text-sm sm:text-base font-semibold text-purple-800 mx-4">
-                  🎯 {category} Words:
-                </span>
-                {WORDS_BY_CATEGORY[category].map((word, index) => (
-                  <span key={index} className="text-sm sm:text-base text-gray-700 mx-2">
-                    {word} •
-                  </span>
-                ))}
-                {/* Duplicate for seamless loop */}
-                <span className="text-sm sm:text-base font-semibold text-purple-800 mx-4">
-                  🎯 {category} Words:
-                </span>
-                {WORDS_BY_CATEGORY[category].map((word, index) => (
-                  <span key={`dup-${index}`} className="text-sm sm:text-base text-gray-700 mx-2">
-                    {word} •
-                  </span>
-                ))}
-              </div>
-            </div>
-          </div>
-        )}
-
         <div className="grid grid-cols-1 lg:grid-cols-4 gap-3 sm:gap-6">
-          {/* Sidebar - Players & Timer */}
+          {/* Sidebar - Players */}
           <div className="lg:col-span-1 space-y-3 sm:space-y-4">
-            <Card>
-              <Timer seconds={remainingTime} />
-            </Card>
-
             <Card>
               <PlayerList
                 players={players}
@@ -410,22 +389,43 @@ export function GameBoard() {
                   {isChameleon ? '🦎 You are the GIRGIT!' : '🕵️ You are NOT the Girgit'}
                 </div>
 
-                <div>
-                  <div className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">Category</div>
-                  <div className="text-2xl sm:text-3xl font-bold text-purple-600">{category}</div>
+                <div className="grid grid-cols-2 gap-4 text-center">
+                  <div>
+                    <div className="text-xs sm:text-sm text-gray-500 font-medium uppercase tracking-wide">Category</div>
+                    <div className="text-xl sm:text-2xl font-bold text-purple-600 mt-1">{category}</div>
+                  </div>
+                  <div>
+                    <div className="text-xs sm:text-sm text-gray-500 font-medium uppercase tracking-wide">Secret Word</div>
+                    <div className="text-xl sm:text-2xl font-bold text-blue-600 mt-1">
+                      {isChameleon ? '\u00a0' : secretWord}
+                    </div>
+                  </div>
                 </div>
 
-                {!isChameleon && secretWord && (
-                  <div>
-                    <div className="text-xs sm:text-sm text-gray-600 mb-1 sm:mb-2">Secret Word</div>
-                    <div className="text-3xl sm:text-4xl font-bold text-blue-600">{secretWord}</div>
+                {/* Auto-Scrolling Word List */}
+                {category && WORDS_BY_CATEGORY[category] && (
+                  <div className="mt-3">
+                    <div className="flex items-center gap-2 mb-1 px-1">
+                      <div className="flex-1 h-px bg-gray-200" />
+                      <span className="text-xs font-semibold text-gray-400 uppercase tracking-widest whitespace-nowrap">Secret Word List</span>
+                      <div className="flex-1 h-px bg-gray-200" />
+                    </div>
+                  <div className="overflow-hidden rounded-lg border border-purple-200 bg-gradient-to-r from-purple-50 via-blue-50 to-purple-50 py-2 relative">
+                    <div className="absolute inset-y-0 left-0 w-6 bg-gradient-to-r from-purple-50 to-transparent z-10 pointer-events-none" />
+                    <div className="absolute inset-y-0 right-0 w-6 bg-gradient-to-l from-purple-50 to-transparent z-10 pointer-events-none" />
+                    <div className="flex animate-scroll-left whitespace-nowrap w-max">
+                      {[...WORDS_BY_CATEGORY[category], ...WORDS_BY_CATEGORY[category]].map((word, index) => (
+                        <span key={index} className="text-xs font-medium text-purple-700 mx-3">{word}</span>
+                      ))}
+                    </div>
+                  </div>
                   </div>
                 )}
 
                 {isChameleon && (
                   <div className="bg-yellow-50 border border-yellow-200 p-3 sm:p-4 rounded-lg">
                     <p className="text-xs sm:text-sm text-yellow-800">
-                      You don't know the secret word! Try to blend in by giving a clue that fits the category.
+                      You don't know the secret word! Refer above list. Try to blend in by giving a clue that fits the category.
                     </p>
                   </div>
                 )}
@@ -520,11 +520,8 @@ export function GameBoard() {
               <Card title="All Clues Submitted!">
                 <div className="space-y-4 text-center">
                   <div className="bg-green-50 border-2 border-green-300 p-4 rounded-lg">
-                    <p className="text-lg sm:text-xl font-bold text-green-800 mb-2">
-                      ✓ Everyone has submitted their clue!
-                    </p>
-                    <p className="text-sm sm:text-base text-green-700">
-                      Voting starts in {remainingTime} seconds...
+                    <p className="text-lg sm:text-xl font-bold text-green-800">
+                      ✓ Everyone has submitted their clue! Voting starts soon...
                     </p>
                   </div>
 
@@ -568,11 +565,9 @@ export function GameBoard() {
 
             {/* Voting Phase */}
             {gameState === 'voting' && (
-              <Card title="Vote for the Girgit">
+              <Card title="Vote for the Girgit:">
                 <div className="space-y-3 sm:space-y-4">
-                  <p className="text-sm sm:text-base text-gray-700">
-                    Click on a player to vote for them as the Girgit:
-                  </p>
+                   
 
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
                     {players.filter(p => p.id !== currentPlayer).map((player) => (
@@ -633,22 +628,13 @@ export function GameBoard() {
               <Card title="All Votes Submitted!">
                 <div className="space-y-4 text-center">
                   <div className="bg-yellow-50 border-2 border-yellow-300 p-4 rounded-lg">
-                    <p className="text-lg sm:text-xl font-bold text-yellow-800 mb-2">
-                      ✓ Everyone has voted!
-                    </p>
+                     
                     <p className="text-sm sm:text-base text-yellow-700">
-                      Discuss and change your vote if needed.
-                    </p>
-                    <p className="text-lg font-bold text-yellow-900 mt-2">
-                      Results in {remainingTime} seconds...
+                      Discuss using chat and change your vote if needed.
                     </p>
                   </div>
 
-                  <div className="bg-blue-50 p-3 rounded-lg">
-                    <p className="text-sm font-semibold text-blue-800 mb-2">
-                      You can still change your vote using the chat or by re-voting!
-                    </p>
-                  </div>
+                   
 
                   {/* Allow re-voting */}
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
@@ -708,9 +694,6 @@ export function GameBoard() {
                     </p>
                     <p className="text-sm sm:text-base text-red-700">
                       There's a tie in voting. Vote again to break the tie!
-                    </p>
-                    <p className="text-lg font-bold text-red-900 mt-2">
-                      {remainingTime} seconds remaining
                     </p>
                   </div>
 
@@ -806,32 +789,29 @@ export function GameBoard() {
 
             {/* Resolution Phase */}
             {gameState === 'resolution' && roundResult && (
-              <Card title="Round Results">
+              <Card>
                 <div className="space-y-3 sm:space-y-4">
-                  <div className="text-center">
-                    <div className="text-lg sm:text-2xl font-bold mb-2">
-                      The Girgit was: {players.find(p => p.id === roundResult.chameleonId)?.name}
-                    </div>
-                    <div className="text-base sm:text-xl">
-                      Most votes went to: {players.find(p => p.id === roundResult.suspectedChameleon)?.name}
-                    </div>
-                    {roundResult.chameleonCaught ? (
-                      <div className="mt-2 text-green-600 font-bold">
-                        ✓ Girgit caught!
+                  {roundResult.chameleonCaught ? (
+                    <div className="animate-celebrate text-center py-4 px-4 rounded-xl animate-rainbow text-white shadow-lg">
+                      <div className="text-xl sm:text-2xl font-black">
+                        🎉 Girgit Caught: {players.find(p => p.id === roundResult.chameleonId)?.name} 🎉
                       </div>
-                    ) : (
-                      <div className="mt-2 text-red-600 font-bold">
-                        ✗ Girgit escaped!
+                    </div>
+                  ) : (
+                    <div className="text-center py-3 px-4 rounded-xl bg-gray-800 text-white shadow-lg space-y-1">
+                      <div className="text-xl sm:text-2xl font-black">🦎 Girgit Escaped!</div>
+                      <div className="text-sm font-semibold opacity-80">
+                        Most votes: {players.find(p => p.id === roundResult.suspectedChameleon)?.name || 'No clear vote'}
                       </div>
-                    )}
-                  </div>
+                    </div>
+                  )}
 
-                  <div className="bg-blue-50 p-3 sm:p-4 rounded-lg">
-                    <div className="text-center">
-                      <div className="text-xs sm:text-sm text-gray-600">Secret Word</div>
-                      <div className="text-2xl sm:text-3xl font-bold text-blue-600">{roundResult.secretWord}</div>
+                  {(!isChameleon || roundResult.guess) && (
+                    <div className="bg-blue-50 border border-blue-200 p-3 sm:p-4 rounded-lg flex items-center justify-center gap-2">
+                      <span className="text-sm text-gray-600 font-medium">Secret Word:</span>
+                      <span className="text-xl sm:text-2xl font-bold text-blue-600">{roundResult.secretWord}</span>
                     </div>
-                  </div>
+                  )}
                   
                   {roundResult.chameleonCaught && isChameleon && !roundResult.guess && (
                     <div className="space-y-3">

@@ -104,11 +104,6 @@ export class GameRoom {
       clue
     });
 
-    // If all players submitted, move to discussion
-    if (this.clues.length === this.players.size) {
-      this.startDiscussionPhase();
-    }
-
     return true;
   }
 
