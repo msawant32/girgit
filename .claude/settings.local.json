@@ -5,7 +5,11 @@
       "Bash(npm start)",
       "Bash(npx vite preview:*)",
       "Bash(curl:*)",
-      "Bash(lsof:*)"
+      "Bash(lsof:*)",
+      "Bash(fly volumes delete:*)",
+      "Bash(fly deploy:*)",
+      "Bash(fly machines list:*)",
+      "Bash(fly logs:*)"
     ]
   }
 }
