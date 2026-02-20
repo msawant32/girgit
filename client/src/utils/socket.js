@@ -13,23 +13,36 @@ export const socket = io(SOCKET_URL, {
   upgrade: true,
   rememberUpgrade: true,
   forceNew: false,
-  multiplex: true
+  multiplex: true,
+  withCredentials: true  // Enable session cookies
 });
 
-// Auto-rejoin room after reconnection
+// Connection established - server will auto-reconnect via session
 socket.on('connect', () => {
   console.log('✅ Socket connected:', socket.id);
-  const savedRoomCode = localStorage.getItem('lastRoomCode');
-  const savedPlayerName = localStorage.getItem('lastPlayerName');
-  if (savedRoomCode && savedPlayerName && !socket._rejoining) {
-    socket._rejoining = true;
-    socket.emit('rejoin-room', { roomCode: savedRoomCode, playerName: savedPlayerName }, (response) => {
-      socket._rejoining = false;
-      if (response && response.success) {
-        console.log('🔄 Auto-rejoined room', savedRoomCode);
-      }
-    });
-  }
+});
+
+// Handle auto-reconnection from server (session-based)
+socket.on('auto-reconnected', (data) => {
+  console.log('🔄 Auto-reconnected to room:', data.roomCode);
+  // Store in localStorage as backup
+  localStorage.setItem('lastRoomCode', data.roomCode);
+  localStorage.setItem('lastPlayerName', data.playerName);
+
+  // Dispatch custom event for app components to handle state restoration
+  window.dispatchEvent(new CustomEvent('auto-reconnected', { detail: data }));
+});
+
+// Handle room expiration/not found
+socket.on('room-expired', (data) => {
+  console.log('❌ Room expired:', data.message);
+
+  // Clear stored data
+  localStorage.removeItem('lastRoomCode');
+  localStorage.removeItem('lastPlayerName');
+
+  // Dispatch event to redirect user to home with message
+  window.dispatchEvent(new CustomEvent('room-expired', { detail: data }));
 });
 
 socket.on('disconnect', (reason) => {

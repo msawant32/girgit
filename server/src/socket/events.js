@@ -23,6 +23,77 @@ export function setupSocketEvents(io) {
   io.on('connection', (socket) => {
     console.log('Client connected:', socket.id);
 
+    // Auto-reconnect if session has active game data
+    const session = socket.request.session;
+    if (session && session.roomCode && session.playerName) {
+      const room = rooms.get(session.roomCode);
+
+      if (!room) {
+        // Room not found - clear session and notify client
+        console.log(`Room ${session.roomCode} not found for ${session.playerName}, clearing session`);
+        session.roomCode = null;
+        session.playerName = null;
+        session.save();
+
+        socket.emit('room-expired', {
+          message: 'Room no longer exists. Please create or join a new room.'
+        });
+        return;
+      }
+
+      // Check if player exists in room
+      const existingPlayer = Array.from(room.players.values()).find(
+        p => p.name === session.playerName
+      );
+
+      if (existingPlayer) {
+        console.log(`Auto-reconnecting ${session.playerName} to room ${session.roomCode}`);
+
+        // Remove old socket association
+        const oldSocketId = Array.from(room.players.entries()).find(
+          ([_, p]) => p.name === session.playerName
+        )?.[0];
+
+        if (oldSocketId && oldSocketId !== socket.id) {
+          const pendingDisconnect = disconnectTimers.get(oldSocketId);
+          if (pendingDisconnect) {
+            clearTimeout(pendingDisconnect.timer);
+            disconnectTimers.delete(oldSocketId);
+          }
+          room.removePlayer(oldSocketId);
+          socketToRoom.delete(oldSocketId);
+        }
+
+        // Add player with new socket
+        room.addPlayer(socket.id, session.playerName);
+        socketToRoom.set(socket.id, session.roomCode);
+        socket.join(session.roomCode);
+
+        // Notify client of successful auto-reconnection
+        socket.emit('auto-reconnected', {
+          roomCode: session.roomCode,
+          playerName: session.playerName,
+          gameState: room.getFullState(socket.id)
+        });
+
+        // Notify other players
+        io.to(session.roomCode).emit('player-joined', {
+          player: room.players.get(socket.id),
+          players: room.getPlayers()
+        });
+      } else {
+        // Player not in room - clear session
+        console.log(`Player ${session.playerName} not found in room ${session.roomCode}, clearing session`);
+        session.roomCode = null;
+        session.playerName = null;
+        session.save();
+
+        socket.emit('room-expired', {
+          message: 'You are no longer in this room. Please create or join a new room.'
+        });
+      }
+    }
+
     // Create room
     socket.on('create-room', ({ playerName, country }, callback) => {
       try {
@@ -38,8 +109,14 @@ export function setupSocketEvents(io) {
 
         rooms.set(roomCode, room);
         socketToRoom.set(socket.id, roomCode);
+        room.saveState();
 
         socket.join(roomCode);
+
+        // Save to session for auto-reconnect
+        socket.request.session.roomCode = roomCode;
+        socket.request.session.playerName = playerName;
+        socket.request.session.save();
 
         callback({ success: true, roomCode, player });
         console.log(`Room created: ${roomCode} by ${playerName}`);
@@ -73,8 +150,14 @@ export function setupSocketEvents(io) {
 
         const player = room.addPlayer(socket.id, playerName);
         socketToRoom.set(socket.id, roomCode);
+        room.saveState();
 
         socket.join(roomCode);
+
+        // Save to session for auto-reconnect
+        socket.request.session.roomCode = roomCode;
+        socket.request.session.playerName = playerName;
+        socket.request.session.save();
 
         // Notify all players in room
         io.to(roomCode).emit('player-joined', {
@@ -128,7 +211,13 @@ export function setupSocketEvents(io) {
         // Add player with new socket
         const player = room.addPlayer(socket.id, playerName);
         socketToRoom.set(socket.id, roomCode);
+        room.saveState();
         socket.join(roomCode);
+
+        // Save to session for auto-reconnect
+        socket.request.session.roomCode = roomCode;
+        socket.request.session.playerName = playerName;
+        socket.request.session.save();
 
         // Notify all players
         io.to(roomCode).emit('player-joined', {
@@ -254,6 +343,8 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Could not submit clue' });
         }
 
+        room.saveState();
+
         // Broadcast clue to all players
         io.to(roomCode).emit('clue-submitted', {
           playerId: playerId,
@@ -322,6 +413,8 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Invalid vote' });
         }
 
+        room.saveState();
+
         io.to(roomCode).emit('vote-submitted', {
           voterId: socket.id,
           votesCount: room.votes.size,
@@ -382,6 +475,7 @@ export function setupSocketEvents(io) {
         }
 
         const result = room.submitChameleonGuess(guess);
+        room.saveState();
 
         io.to(roomCode).emit('chameleon-guessed', {
           guess,
@@ -412,6 +506,7 @@ export function setupSocketEvents(io) {
         }
 
         room.nextRound();
+        room.saveState();
 
         io.to(roomCode).emit('round-started', {
           currentRound: room.currentRound
@@ -445,6 +540,7 @@ export function setupSocketEvents(io) {
         }
 
         const gameResult = room.endGame();
+        room.saveState();
 
         // Save to database and update cumulative scores
         const gameId = gameIdMap.get(roomCode);

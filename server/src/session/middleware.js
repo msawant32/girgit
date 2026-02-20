@@ -6,11 +6,13 @@ import { dirname, join } from 'path';
 const __dirname = dirname(fileURLToPath(import.meta.url));
 const SQLiteStore = connectSqlite3(session);
 
+// Use /data in production (Fly.io), local path in development
+const dbDir = process.env.FLY_APP_NAME ? '/data' : join(__dirname, '../../');
+
 export const sessionMiddleware = session({
   store: new SQLiteStore({
     db: 'sessions.db',
-    dir: join(__dirname, '../../'),
-    ttl: 86400000 // 24 hours
+    dir: dbDir
   }),
   secret: process.env.SESSION_SECRET || 'girgit-secret-key-change-in-production',
   resave: false,

@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { Card } from '../components/Card';
 import { Button } from '../components/Button';
 import { Logo } from '../components/Logo';
@@ -12,8 +12,16 @@ export function LandingPage() {
   const [loading, setLoading] = useState(false);
   const [lastRoom, setLastRoom] = useState(null);
   const navigate = useNavigate();
+  const location = useLocation();
 
   useEffect(() => {
+    // Check for error message from navigation state
+    if (location.state?.error) {
+      setError(location.state.error);
+      // Clear the navigation state
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+
     // Check for last room in localStorage
     const savedRoom = localStorage.getItem('lastRoomCode');
     const savedName = localStorage.getItem('lastPlayerName');
@@ -21,7 +29,7 @@ export function LandingPage() {
       setLastRoom({ roomCode: savedRoom, playerName: savedName });
       setPlayerName(savedName);
     }
-  }, []);
+  }, [location.state, location.pathname, navigate]);
 
   const handleCreateRoom = () => {
     if (!playerName.trim()) {

@@ -49,7 +49,11 @@ export function WaitingRoom() {
                     setIsHost(myPlayer.isHost);
                   }
                 } else {
-                  navigate('/');
+                  // Room not found or error, redirect with message
+                  navigate('/', {
+                    replace: true,
+                    state: { error: joinResponse?.error || 'Room not found. Please create or join a new room.' }
+                  });
                 }
               });
             }
@@ -63,7 +67,10 @@ export function WaitingRoom() {
         }
       } else {
         setIsRejoining(false);
-        navigate('/');
+        navigate('/', {
+          replace: true,
+          state: { error: 'Room session expired. Please create or join a new room.' }
+        });
       }
     }
   }, []);

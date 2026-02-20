@@ -3,7 +3,13 @@ import { fileURLToPath } from 'url';
 import { dirname, join } from 'path';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
-const db = new Database(join(__dirname, '../../gamestate.db'));
+
+// Use /data in production (Fly.io), local path in development
+const dbPath = process.env.FLY_APP_NAME
+  ? '/data/gamestate.db'
+  : join(__dirname, '../../gamestate.db');
+
+const db = new Database(dbPath);
 
 // Initialize schema
 db.exec(`
@@ -46,6 +52,8 @@ db.exec(`
 
   CREATE INDEX IF NOT EXISTS idx_active_games_updated ON active_games(updated_at);
 `);
+
+
 
 // Game State Persistence
 export function saveGameState(roomCode, state) {
