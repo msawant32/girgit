@@ -3,6 +3,7 @@ import { createServer } from 'http';
 import { Server } from 'socket.io';
 import cors from 'cors';
 import { setupSocketEvents } from './socket/events.js';
+import { sessionMiddleware, wrapSocketWithSession } from './session/middleware.js';
 
 const app = express();
 const httpServer = createServer(app);
@@ -10,7 +11,8 @@ const httpServer = createServer(app);
 const io = new Server(httpServer, {
   cors: {
     origin: process.env.CLIENT_URL || '*',
-    methods: ['GET', 'POST']
+    methods: ['GET', 'POST'],
+    credentials: true
   },
   pingTimeout: 60000,
   pingInterval: 25000,
@@ -21,13 +23,21 @@ const io = new Server(httpServer, {
   connectTimeout: 45000
 });
 
-app.use(cors());
+app.use(cors({ origin: process.env.CLIENT_URL || '*', credentials: true }));
 app.use(express.json());
+app.use(sessionMiddleware);
 
 // Health check endpoint
 app.get('/health', (req, res) => {
-  res.json({ status: 'ok', timestamp: new Date().toISOString() });
+  res.json({
+    status: 'ok',
+    version: '1.0.0',
+    timestamp: new Date().toISOString()
+  });
 });
+
+// Wrap socket.io with session
+wrapSocketWithSession(io);
 
 // Setup socket events
 setupSocketEvents(io);
@@ -35,6 +45,7 @@ setupSocketEvents(io);
 const PORT = process.env.PORT || 3001;
 
 httpServer.listen(PORT, () => {
-  console.log(`🎮 Chameleon Game Server running on port ${PORT}`);
+  console.log(`🎮 Girgit Game Server v1.0.0`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
+  console.log(`🚀 Running on port ${PORT}`);
 });

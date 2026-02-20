@@ -1,110 +1,203 @@
-// In-memory game history storage
-const games = [];
-let nextGameId = 1;
+import Database from 'better-sqlite3';
+import { fileURLToPath } from 'url';
+import { dirname, join } from 'path';
 
-// Player cumulative scores storage (playerName -> totalScore)
-const playerScores = new Map();
+const __dirname = dirname(fileURLToPath(import.meta.url));
+const db = new Database(join(__dirname, '../../gamestate.db'));
 
+// Initialize schema
+db.exec(`
+  CREATE TABLE IF NOT EXISTS active_games (
+    room_code TEXT PRIMARY KEY,
+    state TEXT NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS game_history (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    room_code TEXT NOT NULL,
+    started_at TEXT NOT NULL,
+    ended_at TEXT,
+    total_rounds INTEGER DEFAULT 0
+  );
+
+  CREATE TABLE IF NOT EXISTS game_players (
+    game_id INTEGER NOT NULL,
+    player_name TEXT NOT NULL,
+    final_score INTEGER NOT NULL,
+    FOREIGN KEY (game_id) REFERENCES game_history(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS game_rounds (
+    game_id INTEGER NOT NULL,
+    round_number INTEGER NOT NULL,
+    category TEXT NOT NULL,
+    secret_word TEXT NOT NULL,
+    chameleon_name TEXT,
+    suspected_name TEXT,
+    chameleon_caught INTEGER NOT NULL,
+    FOREIGN KEY (game_id) REFERENCES game_history(id)
+  );
+
+  CREATE TABLE IF NOT EXISTS player_scores (
+    player_name TEXT PRIMARY KEY,
+    total_score INTEGER NOT NULL DEFAULT 0
+  );
+
+  CREATE INDEX IF NOT EXISTS idx_active_games_updated ON active_games(updated_at);
+`);
+
+// Game State Persistence
+export function saveGameState(roomCode, state) {
+  const stmt = db.prepare(`
+    INSERT OR REPLACE INTO active_games (room_code, state, updated_at)
+    VALUES (?, ?, ?)
+  `);
+  stmt.run(roomCode, JSON.stringify(state), Date.now());
+}
+
+export function loadGameState(roomCode) {
+  const stmt = db.prepare(`
+    SELECT state FROM active_games
+    WHERE room_code = ? AND updated_at > ?
+  `);
+  const row = stmt.get(roomCode, Date.now() - 86400000); // 24h TTL
+  return row ? JSON.parse(row.state) : null;
+}
+
+export function deleteGameState(roomCode) {
+  db.prepare('DELETE FROM active_games WHERE room_code = ?').run(roomCode);
+}
+
+// Cleanup old games
+setInterval(() => {
+  const count = db.prepare('DELETE FROM active_games WHERE updated_at < ?')
+    .run(Date.now() - 86400000).changes;
+  if (count > 0) console.log(`Cleaned up ${count} old game(s)`);
+}, 3600000); // Every hour
+
+// Game History
 export function createGame(roomCode) {
-  const gameId = nextGameId++;
-  games.push({
-    id: gameId,
-    roomCode,
-    startedAt: new Date().toISOString(),
-    endedAt: null,
-    totalRounds: 0,
-    players: [],
-    rounds: []
-  });
-  return gameId;
+  const stmt = db.prepare(`
+    INSERT INTO game_history (room_code, started_at)
+    VALUES (?, ?)
+  `);
+  const result = stmt.run(roomCode, new Date().toISOString());
+  return result.lastInsertRowid;
 }
 
 export function endGame(gameId, totalRounds) {
-  const game = games.find(g => g.id === gameId);
-  if (game) {
-    game.endedAt = new Date().toISOString();
-    game.totalRounds = totalRounds;
-  }
+  db.prepare(`
+    UPDATE game_history
+    SET ended_at = ?, total_rounds = ?
+    WHERE id = ?
+  `).run(new Date().toISOString(), totalRounds, gameId);
 }
 
 export function addGamePlayer(gameId, playerName, finalScore) {
-  const game = games.find(g => g.id === gameId);
-  if (game) {
-    game.players.push({
-      playerName,
-      finalScore
-    });
-  }
+  db.prepare(`
+    INSERT INTO game_players (game_id, player_name, final_score)
+    VALUES (?, ?, ?)
+  `).run(gameId, playerName, finalScore);
 }
 
 export function addGameRound(gameId, roundData) {
-  const game = games.find(g => g.id === gameId);
-  if (game) {
-    game.rounds.push({
-      roundNumber: roundData.round,
-      category: roundData.category,
-      secretWord: roundData.secretWord,
-      chameleonName: roundData.chameleonName,
-      suspectedName: roundData.suspectedName,
-      chameleonCaught: roundData.chameleonCaught
-    });
-  }
+  db.prepare(`
+    INSERT INTO game_rounds (game_id, round_number, category, secret_word, chameleon_name, suspected_name, chameleon_caught)
+    VALUES (?, ?, ?, ?, ?, ?, ?)
+  `).run(
+    gameId,
+    roundData.round,
+    roundData.category,
+    roundData.secretWord,
+    roundData.chameleonName,
+    roundData.suspectedName,
+    roundData.chameleonCaught ? 1 : 0
+  );
 }
 
 export function getRecentGames(limit = 20) {
-  return games
-    .filter(g => g.endedAt !== null)
-    .sort((a, b) => new Date(b.endedAt) - new Date(a.endedAt))
-    .slice(0, limit)
-    .map(g => ({
-      id: g.id,
-      roomCode: g.roomCode,
-      startedAt: g.startedAt,
-      endedAt: g.endedAt,
-      totalRounds: g.totalRounds,
-      players: g.players.map(p => ({
-        name: p.playerName,
-        score: p.finalScore
-      }))
-    }));
+  const games = db.prepare(`
+    SELECT id, room_code, started_at, ended_at, total_rounds
+    FROM game_history
+    WHERE ended_at IS NOT NULL
+    ORDER BY ended_at DESC
+    LIMIT ?
+  `).all(limit);
+
+  return games.map(game => ({
+    id: game.id,
+    roomCode: game.room_code,
+    startedAt: game.started_at,
+    endedAt: game.ended_at,
+    totalRounds: game.total_rounds,
+    players: db.prepare(`
+      SELECT player_name as name, final_score as score
+      FROM game_players
+      WHERE game_id = ?
+    `).all(game.id)
+  }));
 }
 
 export function getGameDetails(gameId) {
-  const game = games.find(g => g.id === gameId);
+  const game = db.prepare(`
+    SELECT id, room_code, started_at, ended_at, total_rounds
+    FROM game_history
+    WHERE id = ?
+  `).get(gameId);
+
   if (!game) return null;
 
   return {
     id: game.id,
-    roomCode: game.roomCode,
-    startedAt: game.startedAt,
-    endedAt: game.endedAt,
-    totalRounds: game.totalRounds,
-    players: game.players
-      .map(p => ({
-        name: p.playerName,
-        score: p.finalScore
-      }))
-      .sort((a, b) => b.score - a.score),
-    rounds: game.rounds
+    roomCode: game.room_code,
+    startedAt: game.started_at,
+    endedAt: game.ended_at,
+    totalRounds: game.total_rounds,
+    players: db.prepare(`
+      SELECT player_name as name, final_score as score
+      FROM game_players
+      WHERE game_id = ?
+      ORDER BY score DESC
+    `).all(gameId),
+    rounds: db.prepare(`
+      SELECT round_number, category, secret_word, chameleon_name, suspected_name, chameleon_caught
+      FROM game_rounds
+      WHERE game_id = ?
+      ORDER BY round_number
+    `).all(gameId).map(r => ({
+      roundNumber: r.round_number,
+      category: r.category,
+      secretWord: r.secret_word,
+      chameleonName: r.chameleon_name,
+      suspectedName: r.suspected_name,
+      chameleonCaught: r.chameleon_caught === 1
+    }))
   };
 }
 
 export function getPlayerScore(playerName) {
-  return playerScores.get(playerName) || 0;
+  const row = db.prepare('SELECT total_score FROM player_scores WHERE player_name = ?').get(playerName);
+  return row ? row.total_score : 0;
 }
 
 export function updatePlayerScore(playerName, scoreToAdd) {
-  const currentScore = playerScores.get(playerName) || 0;
-  const newScore = currentScore + scoreToAdd;
-  playerScores.set(playerName, newScore);
-  return newScore;
+  db.prepare(`
+    INSERT INTO player_scores (player_name, total_score)
+    VALUES (?, ?)
+    ON CONFLICT(player_name) DO UPDATE SET total_score = total_score + ?
+  `).run(playerName, scoreToAdd, scoreToAdd);
+
+  return getPlayerScore(playerName);
 }
 
 export function getTopPlayers(limit = 10) {
-  return Array.from(playerScores.entries())
-    .map(([name, score]) => ({ name, score }))
-    .sort((a, b) => b.score - a.score)
-    .slice(0, limit);
+  return db.prepare(`
+    SELECT player_name as name, total_score as score
+    FROM player_scores
+    ORDER BY total_score DESC
+    LIMIT ?
+  `).all(limit);
 }
 
-export default { createGame, endGame, addGamePlayer, addGameRound, getRecentGames, getGameDetails, getPlayerScore, updatePlayerScore, getTopPlayers };
+export default db;

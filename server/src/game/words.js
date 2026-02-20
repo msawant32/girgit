@@ -7,15 +7,15 @@ export const WORD_DATABASE_USA = {
   ],
   "Food": [
     "Pizza", "Sushi", "Burger", "Pasta", "Tacos",
-    "Salad", "Steak", "Sandwich", "Curry", "Ramen",
+    "Salad", "Sandwich", "Curry", "Ramen",
     "Croissant", "Pancakes", "Waffles", "Ice Cream", "Chocolate",
-    "Soup", "Burrito", "Lasagna", "Risotto", "Dumplings"
+    "Soup", "Burrito", "Dumplings"
   ],
   "Movies": [
-    "Titanic", "Avatar", "Inception", "Gladiator", "Frozen",
+    "Titanic", "Avatar", "Gladiator", "Frozen",
     "Jaws", "Shrek", "Matrix", "Joker", "Rocky",
-    "Casablanca", "Aladdin", "Brave", "Up", "Cars",
-    "Moana", "Coco", "Thor", "Wonder", "Gravity"
+    "Up", "Cars",
+    "Moana",  "Thor", "Gravity"
   ],
   "Countries": [
     "Japan", "Brazil", "Egypt", "Australia", "Canada",
@@ -27,7 +27,7 @@ export const WORD_DATABASE_USA = {
     "Soccer", "Basketball", "Tennis", "Swimming", "Baseball",
     "Cricket", "Golf", "Boxing", "Skiing", "Surfing",
     "Volleyball", "Hockey", "Rugby", "Badminton", "Cycling",
-    "Wrestling", "Karate", "Gymnastics", "Archery", "Fencing"
+    "Wrestling", "Karate", "Gymnastics", "Archery",  
   ],
   "Professions": [
     "Doctor", "Teacher", "Chef", "Pilot", "Engineer",
@@ -47,17 +47,12 @@ export const WORD_DATABASE_USA = {
     "Truck", "Bus", "Yacht", "Tractor", "Ambulance",
     "Taxi", "Limousine", "Skateboard", "Spaceship", "Canoe"
   ],
-  "Music Genres": [
-    "Rock", "Jazz", "Pop", "Hip Hop", "Classical",
-    "Blues", "Country", "Electronic", "Reggae", "Metal",
-    "Folk", "Soul", "Punk", "Disco", "Opera",
-    "Techno", "Gospel", "Salsa", "Indie", "Funk"
-  ],
+  
   "Furniture": [
     "Chair", "Table", "Sofa", "Bed", "Desk",
     "Cabinet", "Bookshelf", "Lamp", "Mirror", "Wardrobe",
     "Bench", "Dresser", "Nightstand", "Ottoman", "Stool",
-    "Chandelier", "Armchair", "Hammock", "Cradle", "Recliner"
+      "Armchair", "Hammock", "Cradle", "Recliner"
   ],
   "Technology": [
     "Smartphone", "Laptop", "Tablet", "Camera", "Television",
@@ -68,8 +63,8 @@ export const WORD_DATABASE_USA = {
   "Nature": [
     "Mountain", "Ocean", "Forest", "Desert", "River",
     "Volcano", "Waterfall", "Beach", "Lake", "Island",
-    "Canyon", "Valley", "Cave", "Jungle", "Glacier",
-    "Meadow", "Cliff", "Swamp", "Reef", "Prairie"
+    "Canyon", "Valley", "Cave", "Jungle",  
+    "Meadow", "Cliff", "Swamp", "Reef"
   ],
   "Weather": [
     "Sunny", "Rainy", "Snowy", "Cloudy", "Windy",
@@ -99,23 +94,23 @@ export const WORD_DATABASE_USA = {
     "Math", "Science", "History", "English", "Art",
     "Music", "Geography", "Chemistry", "Physics", "Biology",
     "Literature", "Economics", "Psychology", "Philosophy", "Drama",
-    "Spanish", "French", "Algebra", "Geometry", "Calculus"
+    "Spanish", "French", "Algebra", "Geometry"
   ],
   "Fruits": [
     "Apple", "Banana", "Orange", "Mango", "Strawberry",
     "Grape", "Watermelon", "Pineapple", "Peach", "Cherry",
     "Kiwi", "Lemon", "Blueberry", "Raspberry", "Coconut",
-    "Papaya", "Pomegranate", "Plum", "Pear", "Apricot"
+    "Papaya", "Pomegranate", "Pear"
   ],
   "Instruments": [
     "Guitar", "Piano", "Drums", "Violin", "Flute",
-    "Trumpet", "Saxophone", "Cello", "Clarinet", "Harp",
-    "Accordion", "Banjo", "Trombone", "Ukulele", "Harmonica",
-    "Xylophone", "Tambourine", "Bagpipes", "Oboe", "Tuba"
+    "Trumpet", "Saxophone", "Cello", 
+    "Accordion", "Banjo", "Ukulele", "Harmonica",
+    "Xylophone", "Tambourine", "Bagpipes"
   ],
   "Buildings": [
     "House", "School", "Hospital", "Museum", "Library",
-    "Church", "Theater", "Stadium", "Castle", "Temple",
+    "Church", "Theater", "Stadium", "Temple",
     "Skyscraper", "Factory", "Warehouse", "Lighthouse", "Barn",
     "Observatory", "Prison", "Mansion", "Tower", "Monument"
   ]
@@ -127,6 +122,18 @@ export const WORD_DATABASE_INDIA = {
     "Deewar", "Zanjeer", "Don", "Tezaab", "Baazigar",
     "Kuch Kuch Hota Hai", "Kabhi Khushi Kabhie Gham", "Devdas", "Sarkar", "Gangs of Wasseypur",
     "3 Idiots", "PK", "Dangal", "Bahubali", "RRR"
+  ],
+  "Buildings": [
+    "House", "School", "Hospital", "Museum", "Library",
+    "Church", "Theater", "Stadium", "Temple",
+    "Skyscraper", "Factory", "Warehouse", "Lighthouse", "Barn",
+    "Observatory", "Prison", "Mansion", "Tower", "Monument"
+  ],
+   "Professions": [
+    "Doctor", "Teacher", "Chef", "Pilot", "Engineer",
+    "Artist", "Lawyer", "Nurse", "Firefighter", "Scientist",
+    "Musician", "Writer", "Architect", "Detective", "Farmer",
+    "Dentist", "Photographer", "Mechanic", "Astronaut", "Designer"
   ],
   "Indian States": [
     "Maharashtra", "Rajasthan", "Tamil Nadu", "Kerala", "Gujarat",

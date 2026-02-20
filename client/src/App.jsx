@@ -4,6 +4,7 @@ import { LandingPage } from './pages/LandingPage';
 import { WaitingRoom } from './pages/WaitingRoom';
 import { GameBoard } from './pages/GameBoard';
 import { GameHistory } from './pages/GameHistory';
+import { VersionInfo } from './components/VersionInfo';
 
 function App() {
   const { connected } = useSocket();
@@ -25,6 +26,8 @@ function App() {
           <Route path="/history" element={<GameHistory />} />
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
+
+        <VersionInfo />
       </div>
     </BrowserRouter>
   );

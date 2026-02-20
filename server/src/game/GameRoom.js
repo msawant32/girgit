@@ -1,4 +1,5 @@
 import { getCategoryAndWord, WORD_DATABASE_USA, WORD_DATABASE_INDIA } from './words.js';
+import { saveGameState, loadGameState, deleteGameState } from '../database/db.js';
 
 export class GameRoom {
   constructor(roomCode, hostId, country = 'USA') {
@@ -21,6 +22,59 @@ export class GameRoom {
     this.tiebreakAttempted = false;
   }
 
+  saveState() {
+    const state = {
+      roomCode: this.roomCode,
+      hostId: this.hostId,
+      country: this.country,
+      players: Array.from(this.players.entries()),
+      gameState: this.gameState,
+      currentRound: this.currentRound,
+      chameleonId: this.chameleonId,
+      category: this.category,
+      secretWord: this.secretWord,
+      clues: this.clues,
+      votes: Array.from(this.votes.entries()),
+      scores: Array.from(this.scores.entries()),
+      roundHistory: this.roundHistory,
+      timerEndTime: this.timerEndTime,
+      tiebreakAttempted: this.tiebreakAttempted
+    };
+    saveGameState(this.roomCode, state);
+  }
+
+  static loadFromDB(roomCode) {
+    const state = loadGameState(roomCode);
+    if (!state) return null;
+
+    const room = new GameRoom(state.roomCode, state.hostId, state.country);
+    room.players = new Map(state.players);
+    room.gameState = state.gameState;
+    room.currentRound = state.currentRound;
+    room.chameleonId = state.chameleonId;
+    room.category = state.category;
+    room.secretWord = state.secretWord;
+    room.clues = state.clues;
+    room.votes = new Map(state.votes);
+    room.scores = new Map(state.scores);
+    room.roundHistory = state.roundHistory;
+    room.timerEndTime = state.timerEndTime;
+    room.tiebreakAttempted = state.tiebreakAttempted;
+    return room;
+  }
+
+  getFullState(playerId) {
+    const isChameleon = playerId === this.chameleonId;
+    return {
+      ...this.getGameState(),
+      secretWord: isChameleon ? null : this.secretWord,
+      isChameleon,
+      myClue: this.clues.find(c => c.playerId === playerId)?.clue || null,
+      myVote: this.votes.get(playerId) || null,
+      isHost: playerId === this.hostId
+    };
+  }
+
   addPlayer(socketId, playerName) {
     const player = {
       id: socketId,
@@ -30,6 +84,7 @@ export class GameRoom {
     };
     this.players.set(socketId, player);
     this.scores.set(socketId, 0);
+    this.saveState();
     return player;
   }
 

@@ -74,6 +74,7 @@ export function GameBoard() {
   const [chameleonGuess, setChameleonGuess] = useState('');
   const [cumulativeScores, setCumulativeScores] = useState([]);
   const [startingNewGame, setStartingNewGame] = useState(false);
+  const [isRejoining, setIsRejoining] = useState(false);
 
   // Update currentPlayer on reconnect
   useEffect(() => {
@@ -84,17 +85,40 @@ export function GameBoard() {
 
   useEffect(() => {
     // Rejoin room on page refresh
-    if (players.length === 0 && gameState === 'waiting') {
+    const needsRejoin = players.length === 0;
+    if (needsRejoin) {
+      setIsRejoining(true);
       const savedPlayerName = localStorage.getItem('lastPlayerName');
-      if (savedPlayerName) {
-        socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
-          if (response && response.success && response.gameState.gameState !== 'waiting') {
-            // Game is in progress, handle rejoin
-          } else {
-            navigate('/');
-          }
-        });
+      const savedRoomCode = localStorage.getItem('lastRoomCode');
+
+      if (savedPlayerName && savedRoomCode === roomCode) {
+        const attemptRejoin = () => {
+          socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
+            setIsRejoining(false);
+            if (response && response.success) {
+              const state = response.gameState;
+              if (state.gameState === 'waiting') {
+                navigate(`/room/${roomCode}`);
+              } else {
+                setPlayers(state.players);
+                const myPlayer = state.players.find(p => p.name === savedPlayerName);
+                if (myPlayer) {
+                  setIsHost(myPlayer.isHost);
+                }
+              }
+            } else {
+              navigate('/');
+            }
+          });
+        };
+
+        if (socket.connected) {
+          attemptRejoin();
+        } else {
+          socket.once('connect', attemptRejoin);
+        }
       } else {
+        setIsRejoining(false);
         navigate('/');
       }
     }
@@ -350,6 +374,17 @@ export function GameBoard() {
         return 'Game in Progress';
     }
   };
+
+  if (isRejoining) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-xl font-semibold text-gray-700 mb-2">Reconnecting...</div>
+          <div className="text-sm text-gray-500">Restoring game state</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-2 sm:p-4">

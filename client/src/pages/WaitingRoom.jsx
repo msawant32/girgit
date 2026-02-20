@@ -16,24 +16,53 @@ export function WaitingRoom() {
   const [isHost, setIsHost] = useState(location.state?.player?.isHost || false);
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState('');
+  const [isRejoining, setIsRejoining] = useState(false);
 
   useEffect(() => {
     // Rejoin room on page refresh
-    if (players.length === 0) {
+    const needsRejoin = !location.state?.players;
+    if (needsRejoin) {
+      setIsRejoining(true);
       const savedPlayerName = localStorage.getItem('lastPlayerName');
-      if (savedPlayerName) {
-        socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
-          if (response && response.success) {
-            setPlayers(response.gameState.players);
-            const myPlayer = response.gameState.players.find(p => p.name === savedPlayerName);
-            if (myPlayer) {
-              setIsHost(myPlayer.isHost);
+      const savedRoomCode = localStorage.getItem('lastRoomCode');
+
+      if (savedPlayerName && savedRoomCode === roomCode) {
+        const attemptRejoin = () => {
+          socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
+            setIsRejoining(false);
+            if (response && response.success) {
+              setPlayers(response.gameState.players);
+              const myPlayer = response.gameState.players.find(p => p.name === savedPlayerName);
+              if (myPlayer) {
+                setIsHost(myPlayer.isHost);
+              }
+              if (response.gameState.gameState !== 'waiting') {
+                navigate(`/game/${roomCode}`);
+              }
+            } else {
+              // Rejoin failed, try joining as new player
+              socket.emit('join-room', { roomCode, playerName: savedPlayerName }, (joinResponse) => {
+                if (joinResponse && joinResponse.success) {
+                  setPlayers(joinResponse.gameState.players);
+                  const myPlayer = joinResponse.gameState.players.find(p => p.name === savedPlayerName);
+                  if (myPlayer) {
+                    setIsHost(myPlayer.isHost);
+                  }
+                } else {
+                  navigate('/');
+                }
+              });
             }
-          } else {
-            navigate('/');
-          }
-        });
+          });
+        };
+
+        if (socket.connected) {
+          attemptRejoin();
+        } else {
+          socket.once('connect', attemptRejoin);
+        }
       } else {
+        setIsRejoining(false);
         navigate('/');
       }
     }
@@ -119,6 +148,17 @@ export function WaitingRoom() {
   const handleLeaveRoom = () => {
     navigate('/');
   };
+
+  if (isRejoining) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="text-xl font-semibold text-gray-700 mb-2">Reconnecting...</div>
+          <div className="text-sm text-gray-500">Please wait</div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen p-2 sm:p-4">
