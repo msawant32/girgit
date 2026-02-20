@@ -24,15 +24,16 @@ export function setupSocketEvents(io) {
     console.log('Client connected:', socket.id);
 
     // Create room
-    socket.on('create-room', (playerName, callback) => {
+    socket.on('create-room', ({ playerName, country }, callback) => {
       try {
+        const selectedCountry = country || 'USA';
         let roomCode = generateRoomCode();
         // Ensure unique code
         while (rooms.has(roomCode)) {
           roomCode = generateRoomCode();
         }
 
-        const room = new GameRoom(roomCode, socket.id);
+        const room = new GameRoom(roomCode, socket.id, selectedCountry);
         const player = room.addPlayer(socket.id, playerName);
 
         rooms.set(roomCode, room);

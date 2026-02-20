@@ -1,9 +1,10 @@
-import { getCategoryAndWord } from './words.js';
+import { getCategoryAndWord, WORD_DATABASE_USA, WORD_DATABASE_INDIA } from './words.js';
 
 export class GameRoom {
-  constructor(roomCode, hostId) {
+  constructor(roomCode, hostId, country = 'USA') {
     this.roomCode = roomCode;
     this.hostId = hostId;
+    this.country = country;
     this.players = new Map(); // socketId -> player object
     this.gameState = 'waiting'; // waiting, setup, clue, discussion, voting, voting-tiebreak, resolution
     this.currentRound = 0;
@@ -72,8 +73,9 @@ export class GameRoom {
     const playerIds = Array.from(this.players.keys());
     this.chameleonId = playerIds[Math.floor(Math.random() * playerIds.length)];
 
-    // Get random category and word
-    const { category, word } = getCategoryAndWord();
+    // Get random category and word based on room's country
+    const database = this.country === 'INDIA' ? WORD_DATABASE_INDIA : WORD_DATABASE_USA;
+    const { category, word } = getCategoryAndWord(database);
     this.category = category;
     this.secretWord = word;
 

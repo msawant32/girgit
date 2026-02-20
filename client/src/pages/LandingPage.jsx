@@ -33,7 +33,7 @@ export function LandingPage() {
     setError('');
 
     const createRoom = () => {
-      socket.emit('create-room', playerName.trim(), (response) => {
+      socket.emit('create-room', { playerName: playerName.trim(), country: 'USA' }, (response) => {
         setLoading(false);
         if (response && response.success) {
           // Save to localStorage
@@ -296,15 +296,7 @@ export function LandingPage() {
               </div>
             )}
 
-            {/* Game History Link */}
-            <div className="text-center pt-4 border-t border-gray-200">
-              <button
-                onClick={() => navigate('/history')}
-                className="text-blue-600 hover:text-blue-700 font-medium"
-              >
-                View Game History
-              </button>
-            </div>
+             
           </div>
         </Card>
 

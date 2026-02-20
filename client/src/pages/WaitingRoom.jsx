@@ -18,6 +18,28 @@ export function WaitingRoom() {
   const [error, setError] = useState('');
 
   useEffect(() => {
+    // Rejoin room on page refresh
+    if (players.length === 0) {
+      const savedPlayerName = localStorage.getItem('lastPlayerName');
+      if (savedPlayerName) {
+        socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
+          if (response && response.success) {
+            setPlayers(response.gameState.players);
+            const myPlayer = response.gameState.players.find(p => p.name === savedPlayerName);
+            if (myPlayer) {
+              setIsHost(myPlayer.isHost);
+            }
+          } else {
+            navigate('/');
+          }
+        });
+      } else {
+        navigate('/');
+      }
+    }
+  }, []);
+
+  useEffect(() => {
     // Get current player info from socket
     const currentPlayerId = socket.id;
     setCurrentPlayer(currentPlayerId);
@@ -104,15 +126,21 @@ export function WaitingRoom() {
         {/* Header */}
         <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 p-3 sm:p-4 mb-3 sm:mb-4">
           <div className="flex items-center justify-between gap-4">
-            {/* Spacer */}
-            <div className="flex-1 hidden sm:block"></div>
+            {/* Host Info */}
+            <div className="flex-1 flex items-start">
+              {players.find(p => p.isHost) && (
+                <div className="text-sm font-semibold text-gray-700">
+                  Host: {players.find(p => p.isHost).name}
+                </div>
+              )}
+            </div>
 
-            {/* Centered Clickable Logo */}
+            {/* Centered Logo */}
             <div className="flex-shrink-0">
               <Logo size="medium" clickable={true} onClick={() => navigate('/')} />
             </div>
 
-            {/* Right-aligned Room Info */}
+            {/* Room Info */}
             <div className="flex-1 flex items-center justify-end gap-3 text-right">
               <div className="flex flex-col items-end gap-2">
                 <div className="text-sm font-semibold text-gray-600">Waiting Room</div>
@@ -139,7 +167,7 @@ export function WaitingRoom() {
           </div>
           <div className="mt-3 text-center">
             <p className="text-sm text-gray-600">
-              Share this code with your friends!
+              Share this room number with your friends!
             </p>
           </div>
         </div>

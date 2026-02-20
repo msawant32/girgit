@@ -8,8 +8,9 @@ import { Chat } from '../components/Chat';
 import { Logo } from '../components/Logo';
 import socket from '../utils/socket';
 
-// Secret words organized by category
+// Secret words organized by category (mirrors server WORD_DATABASE)
 const WORDS_BY_CATEGORY = {
+  // USA
   "Animals": ["Lion", "Elephant", "Penguin", "Dolphin", "Tiger", "Giraffe", "Kangaroo", "Eagle", "Shark", "Panda", "Koala", "Zebra", "Cheetah", "Gorilla", "Octopus", "Butterfly", "Horse", "Wolf", "Bear", "Fox"],
   "Food": ["Pizza", "Sushi", "Burger", "Pasta", "Tacos", "Salad", "Steak", "Sandwich", "Curry", "Ramen", "Croissant", "Pancakes", "Waffles", "Ice Cream", "Chocolate", "Soup", "Burrito", "Lasagna", "Risotto", "Dumplings"],
   "Movies": ["Titanic", "Avatar", "Inception", "Gladiator", "Frozen", "Jaws", "Shrek", "Matrix", "Joker", "Rocky", "Casablanca", "Aladdin", "Brave", "Up", "Cars", "Moana", "Coco", "Thor", "Wonder", "Gravity"],
@@ -29,7 +30,24 @@ const WORDS_BY_CATEGORY = {
   "School Subjects": ["Math", "Science", "History", "English", "Art", "Music", "Geography", "Chemistry", "Physics", "Biology", "Literature", "Economics", "Psychology", "Philosophy", "Drama", "Spanish", "French", "Algebra", "Geometry", "Calculus"],
   "Fruits": ["Apple", "Banana", "Orange", "Mango", "Strawberry", "Grape", "Watermelon", "Pineapple", "Peach", "Cherry", "Kiwi", "Lemon", "Blueberry", "Raspberry", "Coconut", "Papaya", "Pomegranate", "Plum", "Pear", "Apricot"],
   "Instruments": ["Guitar", "Piano", "Drums", "Violin", "Flute", "Trumpet", "Saxophone", "Cello", "Clarinet", "Harp", "Accordion", "Banjo", "Trombone", "Ukulele", "Harmonica", "Xylophone", "Tambourine", "Bagpipes", "Oboe", "Tuba"],
-  "Buildings": ["House", "School", "Hospital", "Museum", "Library", "Church", "Theater", "Stadium", "Castle", "Temple", "Skyscraper", "Factory", "Warehouse", "Lighthouse", "Barn", "Observatory", "Prison", "Mansion", "Tower", "Monument"]
+  "Buildings": ["House", "School", "Hospital", "Museum", "Library", "Church", "Theater", "Stadium", "Castle", "Temple", "Skyscraper", "Factory", "Warehouse", "Lighthouse", "Barn", "Observatory", "Prison", "Mansion", "Tower", "Monument"],
+  // India
+  "Hindi Movies": ["Sholay", "Dilwale", "Lagaan", "Mughal-E-Azam", "Mother India", "Deewar", "Zanjeer", "Don", "Tezaab", "Baazigar", "Kuch Kuch Hota Hai", "Kabhi Khushi Kabhie Gham", "Devdas", "Sarkar", "Gangs of Wasseypur", "3 Idiots", "PK", "Dangal", "Bahubali", "RRR"],
+  "Indian States": ["Maharashtra", "Rajasthan", "Tamil Nadu", "Kerala", "Gujarat", "Punjab", "Uttar Pradesh", "West Bengal", "Madhya Pradesh", "Karnataka", "Andhra Pradesh", "Telangana", "Odisha", "Bihar", "Assam", "Haryana", "Himachal Pradesh", "Goa", "Jharkhand", "Uttarakhand"],
+  "Indian Cities": ["Mumbai", "Delhi", "Bangalore", "Hyderabad", "Chennai", "Kolkata", "Pune", "Ahmedabad", "Jaipur", "Surat", "Lucknow", "Kanpur", "Nagpur", "Indore", "Vadodara", "Patna", "Bhopal", "Agra", "Varanasi", "Amritsar"],
+  "Indian Food": ["Biryani", "Dosa", "Butter Chicken", "Paneer Tikka", "Dal Makhani", "Chole Bhature", "Pani Puri", "Vada Pav", "Idli Sambar", "Rajma Chawal", "Palak Paneer", "Aloo Paratha", "Gulab Jamun", "Jalebi", "Kheer", "Samosa", "Pav Bhaji", "Dhokla", "Rogan Josh", "Biryani"],
+  "Indian Festivals": ["Diwali", "Holi", "Eid", "Navratri", "Durga Puja", "Ganesh Chaturthi", "Onam", "Pongal", "Baisakhi", "Makar Sankranti", "Lohri", "Raksha Bandhan", "Janmashtami", "Christmas", "Ugadi", "Bihu", "Rath Yatra", "Dussehra", "Teej", "Karva Chauth"],
+  "Indian Monuments": ["Taj Mahal", "Red Fort", "Qutub Minar", "India Gate", "Gateway of India", "Hawa Mahal", "Mysore Palace", "Charminar", "Konark Temple", "Ajanta Caves", "Ellora Caves", "Hampi", "Jantar Mantar", "Victoria Memorial", "Golden Temple", "Lotus Temple", "Sanchi Stupa", "Fatehpur Sikri", "Amber Fort", "Khajuraho"],
+  "Indian Cricketers": ["Sachin Tendulkar", "Virat Kohli", "MS Dhoni", "Rohit Sharma", "Kapil Dev", "Sunil Gavaskar", "Rahul Dravid", "Sourav Ganguly", "Anil Kumble", "Harbhajan Singh", "Yuvraj Singh", "Zaheer Khan", "VVS Laxman", "Shikhar Dhawan", "Jasprit Bumrah", "Ravindra Jadeja", "KL Rahul", "Hardik Pandya", "Rishabh Pant", "Mohammed Shami"],
+  "Bollywood Actors": ["Amitabh Bachchan", "Shah Rukh Khan", "Salman Khan", "Aamir Khan", "Akshay Kumar", "Ranbir Kapoor", "Ranveer Singh", "Hrithik Roshan", "Ajay Devgn", "Varun Dhawan", "Deepika Padukone", "Priyanka Chopra", "Kareena Kapoor", "Alia Bhatt", "Katrina Kaif", "Madhuri Dixit", "Kajol", "Aishwarya Rai", "Taapsee Pannu", "Kangana Ranaut"],
+  "Indian Dances": ["Bharatanatyam", "Kathak", "Odissi", "Kuchipudi", "Manipuri", "Mohiniyattam", "Sattriya", "Garba", "Bhangra", "Lavani", "Bihu", "Gidda", "Yakshagana", "Chhau", "Dollu Kunitha", "Kolattam", "Dandiya", "Fugdi", "Rouf", "Nati"],
+  "Indian Languages": ["Hindi", "Bengali", "Telugu", "Marathi", "Tamil", "Gujarati", "Kannada", "Malayalam", "Odia", "Punjabi", "Assamese", "Maithili", "Urdu", "Sanskrit", "Konkani", "Sindhi", "Kashmiri", "Nepali", "Manipuri", "Bodo"],
+  "Indian Spices": ["Turmeric", "Cumin", "Coriander", "Cardamom", "Cinnamon", "Cloves", "Mustard Seeds", "Fenugreek", "Asafoetida", "Saffron", "Black Pepper", "Red Chilli", "Star Anise", "Bay Leaf", "Mace", "Ajwain", "Fennel", "Nutmeg", "Kokum", "Tamarind"],
+  "Indian Rivers": ["Ganga", "Yamuna", "Brahmaputra", "Godavari", "Krishna", "Kaveri", "Narmada", "Mahanadi", "Tapti", "Indus", "Jhelum", "Chenab", "Ravi", "Beas", "Sutlej", "Chambal", "Betwa", "Ken", "Damodar", "Sabarmati"],
+  "Indian Street Food": ["Pani Puri", "Bhel Puri", "Sev Puri", "Dahi Puri", "Pav Bhaji", "Vada Pav", "Dabeli", "Kachori", "Aloo Tikki", "Chaat", "Samosa", "Jalebi", "Lassi", "Sugarcane Juice", "Cutting Chai", "Momos", "Rolls", "Frankie", "Kulfi", "Rabri"],
+  "Indian Gods": ["Vishnu", "Shiva", "Brahma", "Ganesha", "Hanuman", "Krishna", "Rama", "Durga", "Lakshmi", "Saraswati", "Kali", "Parvati", "Indra", "Surya", "Kartikeya", "Ayyappa", "Murugan", "Venkateswara", "Jagannath", "Nataraja"],
+  "Indian Animals": ["Bengal Tiger", "Indian Elephant", "Snow Leopard", "One-Horned Rhinoceros", "Asiatic Lion", "Indian Peacock", "King Cobra", "Mugger Crocodile", "Indian Bison", "Blackbuck", "Nilgai", "Sloth Bear", "Indian Pangolin", "Gharial", "Red Panda", "Great Indian Bustard", "Indian Wild Dog", "Irrawaddy Dolphin", "Hoolock Gibbon", "Chinkara"],
+  "Indian Clothing": ["Saree", "Kurta", "Salwar Kameez", "Dhoti", "Sherwani", "Lehenga", "Dupatta", "Lungi", "Angrakha", "Bandhgala", "Patola", "Banarasi Silk", "Phulkari", "Kanjivaram", "Mekhela Chador", "Mundu", "Pheran", "Ghagra", "Anarkali", "Jodhpuri"],
 };
 
 export function GameBoard() {
@@ -62,6 +80,24 @@ export function GameBoard() {
     const onConnect = () => setCurrentPlayer(socket.id);
     socket.on('connect', onConnect);
     return () => socket.off('connect', onConnect);
+  }, []);
+
+  useEffect(() => {
+    // Rejoin room on page refresh
+    if (players.length === 0 && gameState === 'waiting') {
+      const savedPlayerName = localStorage.getItem('lastPlayerName');
+      if (savedPlayerName) {
+        socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
+          if (response && response.success && response.gameState.gameState !== 'waiting') {
+            // Game is in progress, handle rejoin
+          } else {
+            navigate('/');
+          }
+        });
+      } else {
+        navigate('/');
+      }
+    }
   }, []);
 
   useEffect(() => {
@@ -321,10 +357,16 @@ export function GameBoard() {
         {/* Header with Centered Logo and Right-aligned Room Info */}
         <div className="bg-white rounded-xl shadow-lg border-2 border-gray-200 p-3 sm:p-4 mb-3 sm:mb-4">
           <div className="flex items-center justify-between gap-4">
-            {/* Spacer */}
-            <div className="flex-1 hidden sm:block"></div>
+            {/* Host Info */}
+            <div className="flex-1 flex items-start">
+              {players.find(p => p.isHost) && (
+                <div className="text-sm font-semibold text-gray-700">
+                  Host: {players.find(p => p.isHost).name}
+                </div>
+              )}
+            </div>
 
-            {/* Centered Clickable Logo + Timer */}
+            {/* Centered Logo + Timer */}
             <div className="flex-shrink-0 flex flex-col items-center gap-1">
               <Logo size="medium" clickable={true} onClick={() => navigate('/')} />
               {remainingTime > 0 && (
@@ -332,7 +374,7 @@ export function GameBoard() {
               )}
             </div>
 
-            {/* Right-aligned Round Info & Room Code */}
+            {/* Round Info & Room Code */}
             <div className="flex-1 flex items-center justify-end gap-3 text-right">
               <div className="flex flex-col items-end gap-2">
                 {/* Phase Info at top */}
