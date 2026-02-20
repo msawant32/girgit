@@ -247,6 +247,7 @@ export class GameRoom {
       clue
     });
 
+    this.saveState();
     return true;
   }
 
@@ -267,6 +268,7 @@ export class GameRoom {
     if (voterId === votedForId) return false; // Can't vote for yourself
 
     this.votes.set(voterId, votedForId);
+    this.saveState();
 
     return true;
   }
