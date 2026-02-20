@@ -31,7 +31,7 @@ app.use(sessionMiddleware);
 app.get('/health', (req, res) => {
   res.json({
     status: 'ok',
-    version: '1.0.1',
+    version: '1.0.2',
     timestamp: new Date().toISOString()
   });
 });
