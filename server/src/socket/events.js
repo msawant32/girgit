@@ -292,9 +292,9 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Room not found' });
         }
 
-        // Only host can start initial game
-        if (room.gameState === 'waiting' && socket.id !== room.hostId) {
-          return callback({ success: false, error: 'Only host can start initial game' });
+        // Only host can start game (both initial and new games after ending)
+        if (socket.id !== room.hostId) {
+          return callback({ success: false, error: 'Only host can start the game' });
         }
 
         // Block if game already actively in progress
@@ -302,7 +302,7 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Game already in progress' });
         }
 
-        // After game ends or in resolution, anyone can start a new game
+        // After game ends or in resolution, reset to waiting state
         if (room.gameState === 'ended' || room.gameState === 'resolution') {
           room.resetToWaiting();
         }
