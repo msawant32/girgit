@@ -92,6 +92,11 @@ export function WaitingRoom() {
       }
     }
 
+    // Listen for player reconnected
+    function onPlayerReconnected({ players: updatedPlayers }) {
+      setPlayers(updatedPlayers);
+    }
+
     // Listen for player left
     function onPlayerLeft({ players: updatedPlayers, hostLeft }) {
       setPlayers(updatedPlayers);
@@ -127,6 +132,7 @@ export function WaitingRoom() {
     }
 
     socket.on('player-joined', onPlayerJoined);
+    socket.on('player-reconnected', onPlayerReconnected);
     socket.on('player-left', onPlayerLeft);
     socket.on('host-available', onHostAvailable);
     socket.on('host-changed', onHostChanged);
@@ -135,6 +141,7 @@ export function WaitingRoom() {
 
     return () => {
       socket.off('player-joined', onPlayerJoined);
+      socket.off('player-reconnected', onPlayerReconnected);
       socket.off('player-left', onPlayerLeft);
       socket.off('host-available', onHostAvailable);
       socket.off('host-changed', onHostChanged);

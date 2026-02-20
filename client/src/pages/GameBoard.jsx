@@ -223,6 +223,10 @@ export function GameBoard() {
       }
     }
 
+    function onPlayerReconnected({ players: updatedPlayers }) {
+      setPlayers(updatedPlayers);
+    }
+
     socket.on('round-update', onRoundUpdate);
     socket.on('game-state-update', onGameStateUpdate);
     socket.on('timer-update', onTimerUpdate);
@@ -235,6 +239,7 @@ export function GameBoard() {
     socket.on('game-ended', onGameEnded);
     socket.on('chat-message', onChatMessage);
     socket.on('player-left', onPlayerLeft);
+    socket.on('player-reconnected', onPlayerReconnected);
 
     return () => {
       socket.off('round-update', onRoundUpdate);
@@ -249,6 +254,7 @@ export function GameBoard() {
       socket.off('game-ended', onGameEnded);
       socket.off('chat-message', onChatMessage);
       socket.off('player-left', onPlayerLeft);
+      socket.off('player-reconnected', onPlayerReconnected);
     };
   }, [roomCode, navigate]);
 

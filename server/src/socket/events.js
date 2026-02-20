@@ -73,16 +73,17 @@ export function setupSocketEvents(io) {
         socketToRoom.set(socket.id, session.roomCode);
         socket.join(session.roomCode);
 
-        // Notify client of successful auto-reconnection
+        // Notify client of successful auto-reconnection with full state
         socket.emit('auto-reconnected', {
           roomCode: session.roomCode,
           playerName: session.playerName,
           gameState: room.getFullState(socket.id)
         });
 
-        // Notify other players
-        io.to(session.roomCode).emit('player-joined', {
-          player: room.players.get(socket.id),
+        // Notify OTHER players that this player reconnected (not the reconnecting player themselves)
+        socket.broadcast.to(session.roomCode).emit('player-reconnected', {
+          playerId: socket.id,
+          playerName: session.playerName,
           players: room.getPlayers()
         });
       } else {
@@ -163,13 +164,14 @@ export function setupSocketEvents(io) {
         socket.request.session.playerName = playerName;
         socket.request.session.save();
 
-        // Notify all players in room
-        io.to(roomCode).emit('player-joined', {
+        // Send full state to joining player via callback
+        callback({ success: true, player, gameState: room.getGameState() });
+
+        // Notify OTHER players in room (not the joiner)
+        socket.broadcast.to(roomCode).emit('player-joined', {
           player,
           players: room.getPlayers()
         });
-
-        callback({ success: true, player, gameState: room.getGameState() });
         console.log(`${playerName} joined room ${roomCode}`);
       } catch (error) {
         console.error('Error joining room:', error);
@@ -236,15 +238,16 @@ export function setupSocketEvents(io) {
         socket.request.session.playerName = playerName;
         socket.request.session.save();
 
-        // Notify all players
-        io.to(roomCode).emit('player-joined', {
-          player,
-          players: room.getPlayers()
-        });
-
-        // Send full game state for rejoining player
+        // Send full game state for rejoining player FIRST
         const fullGameState = room.getGameState();
         callback({ success: true, player, gameState: fullGameState, rejoined: true });
+
+        // Then notify OTHER players (not the rejoiner)
+        socket.broadcast.to(roomCode).emit('player-reconnected', {
+          playerId: socket.id,
+          playerName,
+          players: room.getPlayers()
+        });
 
         // If game is in progress, send round update to rejoining player
         // Add delay to ensure client has time to navigate and set up listeners
@@ -339,7 +342,7 @@ export function setupSocketEvents(io) {
     });
 
     // Submit clue
-    socket.on('submit-clue', ({ clue, onBehalfOf }, callback) => {
+    socket.on('submit-clue', ({ clue }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -348,11 +351,8 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Invalid game state' });
         }
 
-        // If submitting on behalf of someone else, verify host
-        const playerId = onBehalfOf || socket.id;
-        if (onBehalfOf && socket.id !== room.hostId) {
-          return callback({ success: false, error: 'Only host can submit clues on behalf of others' });
-        }
+        // Players can ONLY submit their own clues
+        const playerId = socket.id;
 
         const success = room.submitClue(playerId, clue);
 
@@ -409,7 +409,7 @@ export function setupSocketEvents(io) {
     });
 
     // Submit vote
-    socket.on('submit-vote', ({ votedForId, onBehalfOf }, callback) => {
+    socket.on('submit-vote', ({ votedForId }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -418,11 +418,8 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Invalid game state' });
         }
 
-        // If voting on behalf of someone else, verify host
-        const voterId = onBehalfOf || socket.id;
-        if (onBehalfOf && socket.id !== room.hostId) {
-          return callback({ success: false, error: 'Only host can vote on behalf of others' });
-        }
+        // Players can ONLY vote for themselves
+        const voterId = socket.id;
 
         const success = room.submitVote(voterId, votedForId);
 
