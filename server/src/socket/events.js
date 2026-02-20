@@ -691,41 +691,22 @@ export function setupSocketEvents(io) {
           const player = room.players.get(socket.id);
           const playerName = player?.name;
 
-          // During active game, give player 30 seconds to reconnect before removing
+          // During active game, keep players in room - they can rejoin anytime
+          // Don't remove them until game ends or they're inactive for extended period
           if (room.gameState !== 'waiting' && room.gameState !== 'ended' && player) {
-            console.log(`Player ${playerName} temporarily disconnected from room ${roomCode}, waiting 30s...`);
+            console.log(`Player ${playerName} temporarily disconnected from room ${roomCode}, can rejoin anytime during game`);
 
-            const timer = setTimeout(() => {
-              disconnectTimers.delete(socket.id);
-              const currentRoom = rooms.get(roomCode);
-              if (currentRoom && currentRoom.players.has(socket.id)) {
-                const removeResult = currentRoom.removePlayer(socket.id);
-                const hostLeft = removeResult === 'host-left';
+            // Keep player in room.players Map but clear socket mapping
+            // Session persists so they can auto-reconnect
+            // DO NOT call removePlayer() - player data stays in room
+            socketToRoom.delete(socket.id);
 
-                io.to(roomCode).emit('player-left', {
-                  playerId: socket.id,
-                  playerName,
-                  players: currentRoom.getPlayers(),
-                  hostLeft
-                });
-
-                if (hostLeft && currentRoom.players.size > 0) {
-                  io.to(roomCode).emit('host-available', {
-                    message: `${playerName} (host) left. Click "Become Host" to take control.`
-                  });
-                }
-
-                if (currentRoom.players.size === 0) {
-                  rooms.delete(roomCode);
-                  gameIdMap.delete(roomCode);
-                  console.log(`Room ${roomCode} deleted (empty)`);
-                }
-              }
-              socketToRoom.delete(socket.id);
-              console.log(`Player ${playerName} removed from room ${roomCode} after timeout`);
-            }, 30000); // 30 second grace period
-
-            disconnectTimers.set(socket.id, { timer, playerName, roomCode });
+            // Notify other players of temporary disconnect (optional)
+            socket.to(roomCode).emit('player-status', {
+              playerId: socket.id,
+              playerName,
+              status: 'disconnected'
+            });
           } else {
             // In waiting room or ended game: remove immediately
             const removeResult = room.removePlayer(socket.id);
