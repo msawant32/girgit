@@ -342,6 +342,14 @@ export function GameBoard() {
     });
   };
 
+  const handleKickPlayer = (playerId) => {
+    socket.emit('kick-player', { playerId }, (response) => {
+      if (!response.success) {
+        console.error('Failed to remove player');
+      }
+    });
+  };
+
   const handleSendMessage = (message) => {
     socket.emit('chat-message', { message }, (response) => {
       if (!response.success) {
@@ -448,6 +456,8 @@ export function GameBoard() {
                 currentPlayerId={currentPlayer}
                 clues={clues}
                 votes={votes}
+                isHost={isHost}
+                onKickPlayer={handleKickPlayer}
               />
             </Card>
           </div>

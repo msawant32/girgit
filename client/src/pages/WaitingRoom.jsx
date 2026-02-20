@@ -174,6 +174,14 @@ export function WaitingRoom() {
     });
   };
 
+  const handleKickPlayer = (playerId) => {
+    socket.emit('kick-player', { playerId }, (response) => {
+      if (!response.success) {
+        setError(response.error || 'Failed to remove player');
+      }
+    });
+  };
+
   const handleSendMessage = (message) => {
     socket.emit('chat-message', { message }, (response) => {
       if (!response.success) {
@@ -256,6 +264,8 @@ export function WaitingRoom() {
               <PlayerList
                 players={players}
                 currentPlayerId={currentPlayer}
+                isHost={isHost}
+                onKickPlayer={handleKickPlayer}
               />
 
               {error && (

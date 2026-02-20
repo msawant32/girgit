@@ -1,6 +1,6 @@
 import { useState } from 'react';
 
-export function PlayerList({ players, currentPlayerId, highlightPlayerId = null, clues = [], votes = new Map() }) {
+export function PlayerList({ players, currentPlayerId, highlightPlayerId = null, clues = [], votes = new Map(), isHost = false, onKickPlayer = null }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
   // Create maps for clues and votes
@@ -9,12 +9,14 @@ export function PlayerList({ players, currentPlayerId, highlightPlayerId = null,
     clueMap.set(clue.playerId, clue.clue);
   });
 
+  const gridCols = isHost ? 'grid-cols-4' : 'grid-cols-3';
+
   return (
     <div className="space-y-2">
       {/* Accordion Header */}
       <button
         onClick={() => setIsExpanded(!isExpanded)}
-        className="w-full grid grid-cols-3 gap-2 items-center bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 rounded-lg px-3 py-2 cursor-pointer transition-colors duration-150 group"
+        className={`w-full grid ${gridCols} gap-2 items-center bg-indigo-50 hover:bg-indigo-100 active:bg-indigo-200 border border-indigo-200 rounded-lg px-3 py-2 cursor-pointer transition-colors duration-150 group`}
       >
         <div className="flex items-center gap-1">
           <span className={`text-indigo-500 group-hover:text-indigo-700 transition-transform duration-200 text-sm font-bold ${isExpanded ? 'rotate-0' : '-rotate-90'}`}>▾</span>
@@ -26,8 +28,9 @@ export function PlayerList({ players, currentPlayerId, highlightPlayerId = null,
             <span className="text-xs font-semibold text-indigo-500 text-center">Voted</span>
           </>
         ) : (
-          <span className="col-span-2" />
+          <span className={isHost ? 'col-span-2' : 'col-span-2'} />
         )}
+        {isHost && <span className="text-xs font-semibold text-indigo-500 text-center">Kick</span>}
       </button>
 
       {/* Collapsible Content */}
@@ -43,7 +46,7 @@ export function PlayerList({ players, currentPlayerId, highlightPlayerId = null,
               return (
                 <div
                   key={player.id}
-                  className={`grid grid-cols-3 gap-2 items-center p-3 rounded-lg transition-all ${
+                  className={`grid ${gridCols} gap-2 items-center p-3 rounded-lg transition-all ${
                     highlightPlayerId === player.id
                       ? 'bg-yellow-100 border-2 border-yellow-400'
                       : 'bg-gray-50'
@@ -82,6 +85,28 @@ export function PlayerList({ players, currentPlayerId, highlightPlayerId = null,
                       <div className="text-xs text-gray-400">—</div>
                     )}
                   </div>
+
+                  {/* Kick Button (Host Only) */}
+                  {isHost && (
+                    <div className="text-center">
+                      {player.id !== currentPlayerId ? (
+                        <button
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            if (onKickPlayer && window.confirm(`Remove ${player.name} from the room?`)) {
+                              onKickPlayer(player.id);
+                            }
+                          }}
+                          className="text-red-500 hover:text-red-700 hover:bg-red-50 p-1 rounded transition-colors"
+                          title="Remove player"
+                        >
+                          ❌
+                        </button>
+                      ) : (
+                        <div className="text-xs text-gray-400">—</div>
+                      )}
+                    </div>
+                  )}
                 </div>
               );
             })}

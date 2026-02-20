@@ -39,12 +39,26 @@ function AppContent() {
       });
     };
 
+    // Listen for kicked event
+    const handleKicked = (event) => {
+      const { message } = event.detail;
+      console.log('❌ Kicked from room, redirecting to home');
+
+      // Navigate to home and show error message
+      navigate('/', {
+        replace: true,
+        state: { error: message }
+      });
+    };
+
     window.addEventListener('auto-reconnected', handleAutoReconnect);
     window.addEventListener('room-expired', handleRoomExpired);
+    window.addEventListener('kicked', handleKicked);
 
     return () => {
       window.removeEventListener('auto-reconnected', handleAutoReconnect);
       window.removeEventListener('room-expired', handleRoomExpired);
+      window.removeEventListener('kicked', handleKicked);
     };
   }, [navigate]);
 

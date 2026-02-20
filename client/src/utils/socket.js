@@ -45,6 +45,18 @@ socket.on('room-expired', (data) => {
   window.dispatchEvent(new CustomEvent('room-expired', { detail: data }));
 });
 
+// Handle being kicked by host
+socket.on('kicked', (data) => {
+  console.log('❌ Kicked from room:', data.message);
+
+  // Clear stored data
+  localStorage.removeItem('lastRoomCode');
+  localStorage.removeItem('lastPlayerName');
+
+  // Dispatch event to redirect user to home with message
+  window.dispatchEvent(new CustomEvent('kicked', { detail: data }));
+});
+
 socket.on('disconnect', (reason) => {
   console.log('❌ Socket disconnected:', reason);
   if (reason === 'io server disconnect') {

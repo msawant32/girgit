@@ -628,6 +628,66 @@ export function setupSocketEvents(io) {
       }
     });
 
+    // Kick player (host only)
+    socket.on('kick-player', ({ playerId }, callback) => {
+      try {
+        const roomCode = socketToRoom.get(socket.id);
+        const room = rooms.get(roomCode);
+
+        if (!room) {
+          return callback({ success: false, error: 'Room not found' });
+        }
+
+        // Only host can kick
+        if (socket.id !== room.hostId) {
+          return callback({ success: false, error: 'Only host can kick players' });
+        }
+
+        // Can't kick yourself
+        if (playerId === socket.id) {
+          return callback({ success: false, error: 'Cannot kick yourself' });
+        }
+
+        const player = room.players.get(playerId);
+        if (!player) {
+          return callback({ success: false, error: 'Player not found' });
+        }
+
+        const playerName = player.name;
+
+        // Remove player from room
+        room.removePlayer(playerId);
+        socketToRoom.delete(playerId);
+
+        // Clear their session
+        const playerSocket = io.sockets.sockets.get(playerId);
+        if (playerSocket?.request?.session) {
+          playerSocket.request.session.roomCode = null;
+          playerSocket.request.session.playerName = null;
+          playerSocket.request.session.save();
+        }
+
+        // Notify kicked player
+        io.to(playerId).emit('kicked', {
+          message: 'You have been removed from the room by the host'
+        });
+
+        // Notify all players
+        io.to(roomCode).emit('player-left', {
+          playerId,
+          playerName,
+          players: room.getPlayers(),
+          kicked: true
+        });
+
+        callback({ success: true });
+        console.log(`Host kicked ${playerName} from room ${roomCode}`);
+      } catch (error) {
+        console.error('Error kicking player:', error);
+        callback({ success: false, error: error.message });
+      }
+    });
+
     // Chat message
     socket.on('chat-message', ({ message }, callback) => {
       try {
@@ -691,47 +751,21 @@ export function setupSocketEvents(io) {
           const player = room.players.get(socket.id);
           const playerName = player?.name;
 
-          // During active game, keep players in room - they can rejoin anytime
-          // Don't remove them until game ends or they're inactive for extended period
-          if (room.gameState !== 'waiting' && room.gameState !== 'ended' && player) {
-            console.log(`Player ${playerName} temporarily disconnected from room ${roomCode}, can rejoin anytime during game`);
+          // NEVER remove players on disconnect - they can always rejoin via session
+          // Only remove via explicit kick-player event
+          console.log(`Player ${playerName} temporarily disconnected from room ${roomCode}, can rejoin anytime`);
 
-            // Keep player in room.players Map but clear socket mapping
-            // Session persists so they can auto-reconnect
-            // DO NOT call removePlayer() - player data stays in room
-            socketToRoom.delete(socket.id);
+          // Keep player in room.players Map but clear socket mapping
+          // Session persists so they can auto-reconnect
+          // DO NOT call removePlayer() - player data stays in room
+          socketToRoom.delete(socket.id);
 
-            // Notify other players of temporary disconnect (optional)
-            socket.to(roomCode).emit('player-status', {
-              playerId: socket.id,
-              playerName,
-              status: 'disconnected'
-            });
-          } else {
-            // In waiting room or ended game: remove immediately
-            const removeResult = room.removePlayer(socket.id);
-            const hostLeft = removeResult === 'host-left';
-
-            io.to(roomCode).emit('player-left', {
-              playerId: socket.id,
-              playerName,
-              players: room.getPlayers(),
-              hostLeft
-            });
-
-            if (hostLeft && room.players.size > 0) {
-              io.to(roomCode).emit('host-available', {
-                message: `${playerName} (host) left. Click "Become Host" to take control.`
-              });
-            }
-
-            if (room.players.size === 0) {
-              rooms.delete(roomCode);
-              gameIdMap.delete(roomCode);
-              console.log(`Room ${roomCode} deleted (empty)`);
-            }
-            socketToRoom.delete(socket.id);
-          }
+          // Notify other players of temporary disconnect
+          socket.to(roomCode).emit('player-status', {
+            playerId: socket.id,
+            playerName,
+            status: 'disconnected'
+          });
         } else {
           socketToRoom.delete(socket.id);
         }
