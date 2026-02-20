@@ -17,6 +17,8 @@ export function WaitingRoom() {
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState('');
   const [isRejoining, setIsRejoining] = useState(false);
+  const [hostAvailable, setHostAvailable] = useState(false);
+  const [hostMessage, setHostMessage] = useState('');
 
   useEffect(() => {
     // Rejoin room on page refresh
@@ -91,8 +93,24 @@ export function WaitingRoom() {
     }
 
     // Listen for player left
-    function onPlayerLeft({ players: updatedPlayers, newHostId }) {
+    function onPlayerLeft({ players: updatedPlayers, hostLeft }) {
       setPlayers(updatedPlayers);
+      if (hostLeft) {
+        setIsHost(false);
+      }
+    }
+
+    // Listen for host available
+    function onHostAvailable({ message }) {
+      setHostAvailable(true);
+      setHostMessage(message);
+    }
+
+    // Listen for host changed
+    function onHostChanged({ newHostId, newHostName, players: updatedPlayers }) {
+      setPlayers(updatedPlayers);
+      setHostAvailable(false);
+      setHostMessage('');
       if (newHostId === socket.id) {
         setIsHost(true);
       }
@@ -110,12 +128,16 @@ export function WaitingRoom() {
 
     socket.on('player-joined', onPlayerJoined);
     socket.on('player-left', onPlayerLeft);
+    socket.on('host-available', onHostAvailable);
+    socket.on('host-changed', onHostChanged);
     socket.on('game-started', onGameStarted);
     socket.on('chat-message', onChatMessage);
 
     return () => {
       socket.off('player-joined', onPlayerJoined);
       socket.off('player-left', onPlayerLeft);
+      socket.off('host-available', onHostAvailable);
+      socket.off('host-changed', onHostChanged);
       socket.off('game-started', onGameStarted);
       socket.off('chat-message', onChatMessage);
     };
@@ -135,6 +157,14 @@ export function WaitingRoom() {
       window.removeEventListener('beforeunload', handleBeforeUnload);
     };
   }, []);
+
+  const handleClaimHost = () => {
+    socket.emit('claim-host', (response) => {
+      if (!response.success) {
+        setError(response.error || 'Failed to claim host');
+      }
+    });
+  };
 
   const handleStartGame = () => {
     socket.emit('start-game', (response) => {
@@ -234,6 +264,20 @@ export function WaitingRoom() {
                 </div>
               )}
 
+              {/* Host Available Message */}
+              {hostAvailable && !isHost && (
+                <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded-lg">
+                  <p className="text-sm text-yellow-800 font-medium mb-2">{hostMessage}</p>
+                  <Button
+                    onClick={handleClaimHost}
+                    variant="primary"
+                    className="w-full"
+                  >
+                    Become Host
+                  </Button>
+                </div>
+              )}
+
               <div className="mt-6 space-y-3">
                 {isHost && (
                   <Button
@@ -257,7 +301,7 @@ export function WaitingRoom() {
                 </Button>
               </div>
 
-              {!isHost && players.length >= 3 && (
+              {!isHost && !hostAvailable && players.length >= 3 && (
                 <div className="mt-4 text-center text-gray-600 text-sm">
                   Waiting for host to start the game...
                 </div>

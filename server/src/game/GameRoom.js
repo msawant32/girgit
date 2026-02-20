@@ -88,18 +88,104 @@ export class GameRoom {
     return player;
   }
 
+  // Update existing player's socket ID (for reconnection)
+  updatePlayerSocketId(oldSocketId, newSocketId, playerName) {
+    const oldPlayer = this.players.get(oldSocketId);
+    if (!oldPlayer) return null;
+
+    // Preserve all player data including host status and score
+    const wasHost = oldPlayer.isHost || oldSocketId === this.hostId;
+    const currentScore = this.scores.get(oldSocketId) || oldPlayer.score || 0;
+
+    // Remove old socket entry
+    this.players.delete(oldSocketId);
+    this.scores.delete(oldSocketId);
+
+    // Add with new socket ID, preserving status
+    const updatedPlayer = {
+      id: newSocketId,
+      name: playerName,
+      isHost: wasHost,
+      score: currentScore
+    };
+
+    this.players.set(newSocketId, updatedPlayer);
+    this.scores.set(newSocketId, currentScore);
+
+    // Update hostId if this player was/is the host
+    if (wasHost) {
+      this.hostId = newSocketId;
+    }
+
+    // Update chameleonId if this player is the chameleon
+    if (this.chameleonId === oldSocketId) {
+      this.chameleonId = newSocketId;
+    }
+
+    // Update votes if player has voted or been voted for
+    if (this.votes.has(oldSocketId)) {
+      const votedFor = this.votes.get(oldSocketId);
+      this.votes.delete(oldSocketId);
+      this.votes.set(newSocketId, votedFor);
+    }
+    // Update if other players voted for this player
+    for (const [voterId, votedForId] of this.votes.entries()) {
+      if (votedForId === oldSocketId) {
+        this.votes.set(voterId, newSocketId);
+      }
+    }
+
+    // Update clues
+    this.clues = this.clues.map(clue =>
+      clue.playerId === oldSocketId
+        ? { ...clue, playerId: newSocketId }
+        : clue
+    );
+
+    this.saveState();
+    return updatedPlayer;
+  }
+
   removePlayer(socketId) {
     this.players.delete(socketId);
     this.scores.delete(socketId);
 
-    // If host left, assign new host
-    if (socketId === this.hostId && this.players.size > 0) {
-      const newHost = Array.from(this.players.keys())[0];
-      this.hostId = newHost;
-      this.players.get(newHost).isHost = true;
-      return newHost;
+    // If host left, set hostId to null - players will need to claim host
+    if (socketId === this.hostId) {
+      this.hostId = null;
+      // Clear isHost flag from all players
+      for (const player of this.players.values()) {
+        player.isHost = false;
+      }
+      return 'host-left';
     }
     return null;
+  }
+
+  // Allow a player to claim host status
+  claimHost(socketId) {
+    // Only allow if no current host
+    if (this.hostId !== null && this.players.has(this.hostId)) {
+      return { success: false, error: 'Room already has a host' };
+    }
+
+    // Check if player exists
+    const player = this.players.get(socketId);
+    if (!player) {
+      return { success: false, error: 'Player not found' };
+    }
+
+    // Ensure all other players have isHost = false
+    for (const p of this.players.values()) {
+      p.isHost = false;
+    }
+
+    // Assign host
+    this.hostId = socketId;
+    player.isHost = true;
+    this.saveState();
+
+    return { success: true, newHostId: socketId, newHostName: player.name };
   }
 
   getPlayers() {

@@ -49,23 +49,27 @@ export function setupSocketEvents(io) {
       if (existingPlayer) {
         console.log(`Auto-reconnecting ${session.playerName} to room ${session.roomCode}`);
 
-        // Remove old socket association
+        // Find old socket ID
         const oldSocketId = Array.from(room.players.entries()).find(
           ([_, p]) => p.name === session.playerName
         )?.[0];
 
         if (oldSocketId && oldSocketId !== socket.id) {
+          // Cancel any pending disconnect timer
           const pendingDisconnect = disconnectTimers.get(oldSocketId);
           if (pendingDisconnect) {
             clearTimeout(pendingDisconnect.timer);
             disconnectTimers.delete(oldSocketId);
           }
-          room.removePlayer(oldSocketId);
+
+          // Update socket ID while preserving player state (including host status)
+          room.updatePlayerSocketId(oldSocketId, socket.id, session.playerName);
           socketToRoom.delete(oldSocketId);
+        } else if (!oldSocketId) {
+          // Player data exists but no socket - add player back
+          room.addPlayer(socket.id, session.playerName);
         }
 
-        // Add player with new socket
-        room.addPlayer(socket.id, session.playerName);
         socketToRoom.set(socket.id, session.roomCode);
         socket.join(session.roomCode);
 
@@ -208,10 +212,23 @@ export function setupSocketEvents(io) {
           socketToRoom.delete(oldSocket);
         }
 
-        // Add player with new socket
-        const player = room.addPlayer(socket.id, playerName);
+        // Find old socket ID
+        const oldSocketId = Array.from(room.players.entries()).find(
+          ([_, p]) => p.name === playerName
+        )?.[0];
+
+        let player;
+        if (oldSocketId && oldSocketId !== socket.id) {
+          // Update socket ID while preserving player state
+          player = room.updatePlayerSocketId(oldSocketId, socket.id, playerName);
+          socketToRoom.delete(oldSocketId);
+        } else {
+          // Add as new player
+          player = room.addPlayer(socket.id, playerName);
+          room.saveState();
+        }
+
         socketToRoom.set(socket.id, roomCode);
-        room.saveState();
         socket.join(roomCode);
 
         // Save to session for auto-reconnect
@@ -580,6 +597,37 @@ export function setupSocketEvents(io) {
       }
     });
 
+    // Claim host
+    socket.on('claim-host', (callback) => {
+      try {
+        const roomCode = socketToRoom.get(socket.id);
+        const room = rooms.get(roomCode);
+
+        if (!room) {
+          return callback({ success: false, error: 'Room not found' });
+        }
+
+        const result = room.claimHost(socket.id);
+
+        if (!result.success) {
+          return callback(result);
+        }
+
+        // Notify all players of new host
+        io.to(roomCode).emit('host-changed', {
+          newHostId: result.newHostId,
+          newHostName: result.newHostName,
+          players: room.getPlayers()
+        });
+
+        callback({ success: true });
+        console.log(`${result.newHostName} claimed host in room ${roomCode}`);
+      } catch (error) {
+        console.error('Error claiming host:', error);
+        callback({ success: false, error: error.message });
+      }
+    });
+
     // Chat message
     socket.on('chat-message', ({ message }, callback) => {
       try {
@@ -651,13 +699,22 @@ export function setupSocketEvents(io) {
               disconnectTimers.delete(socket.id);
               const currentRoom = rooms.get(roomCode);
               if (currentRoom && currentRoom.players.has(socket.id)) {
-                const newHostId = currentRoom.removePlayer(socket.id);
+                const removeResult = currentRoom.removePlayer(socket.id);
+                const hostLeft = removeResult === 'host-left';
+
                 io.to(roomCode).emit('player-left', {
                   playerId: socket.id,
                   playerName,
                   players: currentRoom.getPlayers(),
-                  newHostId
+                  hostLeft
                 });
+
+                if (hostLeft && currentRoom.players.size > 0) {
+                  io.to(roomCode).emit('host-available', {
+                    message: `${playerName} (host) left. Click "Become Host" to take control.`
+                  });
+                }
+
                 if (currentRoom.players.size === 0) {
                   rooms.delete(roomCode);
                   gameIdMap.delete(roomCode);
@@ -671,13 +728,22 @@ export function setupSocketEvents(io) {
             disconnectTimers.set(socket.id, { timer, playerName, roomCode });
           } else {
             // In waiting room or ended game: remove immediately
-            const newHostId = room.removePlayer(socket.id);
+            const removeResult = room.removePlayer(socket.id);
+            const hostLeft = removeResult === 'host-left';
+
             io.to(roomCode).emit('player-left', {
               playerId: socket.id,
               playerName,
               players: room.getPlayers(),
-              newHostId
+              hostLeft
             });
+
+            if (hostLeft && room.players.size > 0) {
+              io.to(roomCode).emit('host-available', {
+                message: `${playerName} (host) left. Click "Become Host" to take control.`
+              });
+            }
+
             if (room.players.size === 0) {
               rooms.delete(roomCode);
               gameIdMap.delete(roomCode);
