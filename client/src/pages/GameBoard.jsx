@@ -273,40 +273,24 @@ export function GameBoard() {
     };
   }, []);
 
-  const handleSubmitClue = (onBehalfOf = null) => {
+  const handleSubmitClue = () => {
     const clueText = myClue.trim();
     if (!clueText) return;
-    if (!onBehalfOf && clueSubmitted) return;
+    if (clueSubmitted) return;
 
-    const clueData = onBehalfOf
-      ? { clue: clueText, onBehalfOf }
-      : { clue: clueText };
-
-    socket.emit('submit-clue', clueData, (response) => {
+    socket.emit('submit-clue', { clue: clueText }, (response) => {
       if (response.success) {
-        if (!onBehalfOf) {
-          setClueSubmitted(true);
-        } else {
-          // Only clear input when submitting on behalf of others
-          setMyClue('');
-        }
+        setClueSubmitted(true);
       }
     });
   };
 
-  const handleSubmitVote = (playerId, onBehalfOf = null) => {
-    if (playerId === currentPlayer && !onBehalfOf) return;
+  const handleSubmitVote = (playerId) => {
+    if (playerId === currentPlayer) return;
 
-    // Allow changing vote during voting-complete phase
-    const voteData = onBehalfOf
-      ? { votedForId: playerId, onBehalfOf }
-      : { votedForId: playerId };
-
-    socket.emit('submit-vote', voteData, (response) => {
+    socket.emit('submit-vote', { votedForId: playerId }, (response) => {
       if (response.success) {
-        if (!onBehalfOf) {
-          setMyVote(playerId);
-        }
+        setMyVote(playerId);
       }
     });
   };
@@ -566,43 +550,6 @@ export function GameBoard() {
                       </div>
                     </div>
                   )}
-
-                  {/* Host controls - submit clues on behalf of players */}
-                  {isHost && clues.length < players.length && (
-                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
-                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
-                        <p className="text-sm text-orange-700 mb-3">
-                          Submit clues on behalf of players who haven't submitted:
-                        </p>
-                        {players.filter(p => !clues.find(c => c.playerId === p.id)).map((player) => (
-                          <details key={player.id} className="mb-2">
-                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
-                              Submit clue for {player.name}
-                            </summary>
-                            <div className="mt-2 flex gap-2">
-                              <input
-                                type="text"
-                                value={myClue}
-                                onChange={(e) => setMyClue(e.target.value)}
-                                placeholder="Enter clue..."
-                                className="input flex-1 text-sm"
-                                maxLength={30}
-                                onKeyPress={(e) => e.key === 'Enter' && handleSubmitClue(player.id)}
-                              />
-                              <button
-                                onClick={() => handleSubmitClue(player.id)}
-                                disabled={!myClue.trim()}
-                                className="px-4 py-2 bg-orange-500 hover:bg-orange-600 disabled:bg-gray-300 disabled:cursor-not-allowed text-white rounded text-sm font-semibold transition-colors"
-                              >
-                                Submit
-                              </button>
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </Card>
             )}
@@ -681,36 +628,6 @@ export function GameBoard() {
                       Vote submitted! Waiting for others...
                     </div>
                   )}
-
-                  {/* Host voting on behalf of others */}
-                  {isHost && votes.size < players.length && (
-                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
-                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
-                        <p className="text-sm text-orange-700 mb-3">
-                          Vote on behalf of players who haven't voted:
-                        </p>
-                        {players.filter(p => !votes.has(p.id)).map((player) => (
-                          <details key={player.id} className="mb-2">
-                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
-                              Vote for {player.name}
-                            </summary>
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {players.filter(p => p.id !== player.id).map((target) => (
-                                <button
-                                  key={target.id}
-                                  onClick={() => handleSubmitVote(target.id, player.id)}
-                                  className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs font-semibold transition-colors"
-                                >
-                                  {target.name}
-                                </button>
-                              ))}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </Card>
             )}
@@ -742,36 +659,6 @@ export function GameBoard() {
                       </Button>
                     ))}
                   </div>
-
-                  {/* Host voting on behalf of others during discussion */}
-                  {isHost && votes.size < players.length && (
-                    <div className="mt-4 pt-4 border-t-2 border-gray-200">
-                      <div className="bg-orange-50 border-2 border-orange-300 p-3 rounded-lg">
-                        <h4 className="font-bold text-orange-800 mb-2">🔑 Host Controls</h4>
-                        <p className="text-sm text-orange-700 mb-3">
-                          Vote on behalf of players who haven't voted:
-                        </p>
-                        {players.filter(p => !votes.has(p.id)).map((player) => (
-                          <details key={player.id} className="mb-2">
-                            <summary className="cursor-pointer bg-white p-2 rounded border border-orange-200 text-sm font-semibold text-orange-800">
-                              Vote for {player.name}
-                            </summary>
-                            <div className="mt-2 grid grid-cols-2 gap-2">
-                              {players.filter(p => p.id !== player.id).map((target) => (
-                                <button
-                                  key={target.id}
-                                  onClick={() => handleSubmitVote(target.id, player.id)}
-                                  className="px-3 py-2 bg-orange-500 hover:bg-orange-600 text-white rounded text-xs font-semibold transition-colors"
-                                >
-                                  {target.name}
-                                </button>
-                              ))}
-                            </div>
-                          </details>
-                        ))}
-                      </div>
-                    </div>
-                  )}
                 </div>
               </Card>
             )}
