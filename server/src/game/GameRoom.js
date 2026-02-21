@@ -14,6 +14,7 @@ export class GameRoom {
     this.secretWord = null;
     this.clues = []; // [{playerId, playerName, clue}]
     this.votes = new Map(); // playerId -> votedForPlayerId
+    this.lockedVotes = new Set(); // Set of playerIds who locked their votes
     this.scores = new Map(); // playerId -> score
     this.currentPlayerIndex = 0;
     this.timer = null;
@@ -35,6 +36,7 @@ export class GameRoom {
       secretWord: this.secretWord,
       clues: this.clues,
       votes: Array.from(this.votes.entries()),
+      lockedVotes: Array.from(this.lockedVotes),
       scores: Array.from(this.scores.entries()),
       roundHistory: this.roundHistory,
       timerEndTime: this.timerEndTime,
@@ -56,6 +58,7 @@ export class GameRoom {
     room.secretWord = state.secretWord;
     room.clues = state.clues;
     room.votes = new Map(state.votes);
+    room.lockedVotes = new Set(state.lockedVotes || []);
     room.scores = new Map(state.scores);
     room.roundHistory = state.roundHistory;
     room.timerEndTime = state.timerEndTime;
@@ -259,6 +262,7 @@ export class GameRoom {
   startVotingPhase() {
     this.gameState = 'voting';
     this.votes.clear();
+    this.lockedVotes.clear();
     this.timerEndTime = Date.now() + 120000; // 2 minutes
   }
 
@@ -271,6 +275,38 @@ export class GameRoom {
     this.saveState();
 
     return true;
+  }
+
+  lockVote(voterId) {
+    if (!this.votes.has(voterId)) return false;
+    this.lockedVotes.add(voterId);
+    this.saveState();
+    return true;
+  }
+
+  allVotesLocked() {
+    if (this.votes.size !== this.players.size) return false;
+    return this.lockedVotes.size === this.players.size;
+  }
+
+  ensureHost() {
+    // If no host or host doesn't exist in players, assign first player as host
+    if (!this.hostId || !this.players.has(this.hostId)) {
+      const firstPlayer = Array.from(this.players.entries())[0];
+      if (firstPlayer) {
+        this.hostId = firstPlayer[0];
+        firstPlayer[1].isHost = true;
+        // Clear isHost from all other players
+        for (const [playerId, player] of this.players.entries()) {
+          if (playerId !== this.hostId) {
+            player.isHost = false;
+          }
+        }
+        this.saveState();
+        return true;
+      }
+    }
+    return false;
   }
 
   resolveRound() {

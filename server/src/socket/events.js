@@ -73,6 +73,10 @@ export function setupSocketEvents(io) {
         socketToRoom.set(socket.id, session.roomCode);
         socket.join(session.roomCode);
 
+        // Ensure there's always a host
+        room.ensureHost();
+        room.saveState();
+
         // Notify client of successful auto-reconnection with full state
         socket.emit('auto-reconnected', {
           roomCode: session.roomCode,
@@ -155,6 +159,7 @@ export function setupSocketEvents(io) {
 
         const player = room.addPlayer(socket.id, playerName);
         socketToRoom.set(socket.id, roomCode);
+        room.ensureHost(); // Ensure there's always a host
         room.saveState();
 
         socket.join(roomCode);
@@ -433,7 +438,8 @@ export function setupSocketEvents(io) {
           voterId: socket.id,
           votesCount: room.votes.size,
           totalPlayers: room.players.size,
-          votes: Array.from(room.votes.entries())
+          votes: Array.from(room.votes.entries()),
+          lockedVotes: Array.from(room.lockedVotes)
         });
 
         callback({ success: true });
@@ -470,6 +476,40 @@ export function setupSocketEvents(io) {
         }
       } catch (error) {
         console.error('Error submitting vote:', error);
+        callback({ success: false, error: error.message });
+      }
+    });
+
+    // Lock vote
+    socket.on('lock-vote', (callback) => {
+      try {
+        const roomCode = socketToRoom.get(socket.id);
+        const room = rooms.get(roomCode);
+
+        if (!room || (room.gameState !== 'voting' && room.gameState !== 'voting-complete')) {
+          return callback({ success: false, error: 'Invalid game state' });
+        }
+
+        const success = room.lockVote(socket.id);
+        if (!success) {
+          return callback({ success: false, error: 'No vote to lock' });
+        }
+
+        io.to(roomCode).emit('vote-locked', {
+          playerId: socket.id,
+          lockedCount: room.lockedVotes.size,
+          totalPlayers: room.players.size,
+          lockedVotes: Array.from(room.lockedVotes)
+        });
+
+        callback({ success: true });
+
+        // If all votes locked, skip timer and resolve immediately
+        if (room.allVotesLocked() && room.gameState === 'voting-complete') {
+          handleVotingComplete(io, roomCode, room);
+        }
+      } catch (error) {
+        console.error('Error locking vote:', error);
         callback({ success: false, error: error.message });
       }
     });
@@ -655,6 +695,10 @@ export function setupSocketEvents(io) {
         // Remove player from room
         room.removePlayer(playerId);
         socketToRoom.delete(playerId);
+
+        // Ensure there's always a host
+        room.ensureHost();
+        room.saveState();
 
         // Clear their session
         const playerSocket = io.sockets.sockets.get(playerId);
