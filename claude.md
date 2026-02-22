@@ -15,4 +15,5 @@
 - **Verification Loop (Crucial):** Never write code blindly. You must always use a tool to verify the output:
   - *Server Code:* Start the Node.js server (`npm run dev` in `/server`) and test the API endpoints.
   - *Web Code:* Start the React client (`npm start` in `/client`) and verify the UI renders correctly in the browser.
+  - Act like a staff engineer or experienced professioal while checking all the mentioned items.
  
