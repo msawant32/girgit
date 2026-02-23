@@ -138,12 +138,26 @@ export function GameBoard() {
       setPlayers(data.players);
       setRemainingTime(data.remainingTime);
       if (data.roundHistory !== undefined) setRoundHistory(data.roundHistory);
-      setClues([]);
-      setClueSubmitted(false);
-      setMyClue('');
-      setMyVote(null);
-      setVotes(new Map());
-      setRoundResult(null);
+      // Sync isHost in case it changed (e.g. after reconnect)
+      const me = data.players.find(p => p.id === socket.id);
+      if (me) setIsHost(me.isHost);
+
+      // If reconnect data: restore existing state, don't reset
+      if (data.existingClues !== undefined) {
+        setClues(data.existingClues || []);
+        setVotes(new Map(data.existingVotes || []));
+        if (data.myClue) { setMyClue(data.myClue); setClueSubmitted(true); }
+        if (data.myVote) setMyVote(data.myVote);
+      } else {
+        // Fresh round — reset
+        setClues([]);
+        setClueSubmitted(false);
+        setMyClue('');
+        setMyVote(null);
+        setVotes(new Map());
+      }
+      // Only clear round result on fresh round start (not reconnect)
+      if (data.existingClues === undefined) setRoundResult(null);
       setChameleonGuess('');
       setStartingNewGame(false);
     }
@@ -245,6 +259,14 @@ export function GameBoard() {
     socket.on('player-left', onPlayerLeft);
     socket.on('player-reconnected', onPlayerReconnected);
 
+    // Request state sync when tab/screen becomes visible again (handles phone lock screen)
+    const onVisibilityChange = () => {
+      if (document.visibilityState === 'visible') {
+        socket.emit('request-game-state');
+      }
+    };
+    document.addEventListener('visibilitychange', onVisibilityChange);
+
     return () => {
       socket.off('round-update', onRoundUpdate);
       socket.off('game-state-update', onGameStateUpdate);
@@ -259,6 +281,7 @@ export function GameBoard() {
       socket.off('chat-message', onChatMessage);
       socket.off('player-left', onPlayerLeft);
       socket.off('player-reconnected', onPlayerReconnected);
+      document.removeEventListener('visibilitychange', onVisibilityChange);
     };
   }, [roomCode, navigate]);
 
