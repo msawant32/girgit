@@ -786,11 +786,41 @@ export function GameBoard() {
                     </div>
                   )}
 
-                  {/* Return to Lobby Button */}
+                  {/* Start New Game / Claim Host */}
+                  {isHost ? (
+                    <Button
+                      variant="success"
+                      onClick={handleNewGame}
+                      disabled={startingNewGame}
+                      className="w-full text-lg"
+                    >
+                      {startingNewGame ? 'Starting Game...' : 'Start New Game'}
+                    </Button>
+                  ) : !players.some(p => p.isHost) ? (
+                    <Button
+                      variant="success"
+                      onClick={() => {
+                        socket.emit('claim-host', (res) => {
+                          if (res.success) {
+                            setIsHost(true);
+                            handleNewGame();
+                          }
+                        });
+                      }}
+                      disabled={startingNewGame}
+                      className="w-full text-lg"
+                    >
+                      {startingNewGame ? 'Starting Game...' : 'Become Host & Start New Game'}
+                    </Button>
+                  ) : (
+                    <div className="text-center text-sm text-gray-500 py-2">
+                      Waiting for host to start a new game...
+                    </div>
+                  )}
                   <Button
-                    variant="primary"
+                    variant="secondary"
                     onClick={() => navigate(`/room/${roomCode}`)}
-                    className="w-full text-lg"
+                    className="w-full"
                   >
                     Return to Lobby
                   </Button>
@@ -867,8 +897,7 @@ export function GameBoard() {
                   )}
 
                   <div className="space-y-2 sm:space-y-3 pt-3 sm:pt-4">
-                    {/* New Game button - only host can start */}
-                    {isHost && (
+                    {isHost ? (
                       <Button
                         variant="success"
                         onClick={handleNewGame}
@@ -877,10 +906,26 @@ export function GameBoard() {
                       >
                         {startingNewGame ? 'Starting Game...' : 'Start New Game'}
                       </Button>
-                    )}
-                    {!isHost && (
-                      <div className="text-center text-sm text-gray-600 py-2">
-                        Waiting for host to start new game...
+                    ) : !players.some(p => p.isHost) ? (
+                      /* No host in room — let anyone claim then start */
+                      <Button
+                        variant="success"
+                        onClick={() => {
+                          socket.emit('claim-host', (res) => {
+                            if (res.success) {
+                              setIsHost(true);
+                              handleNewGame();
+                            }
+                          });
+                        }}
+                        disabled={startingNewGame}
+                        className="w-full"
+                      >
+                        {startingNewGame ? 'Starting Game...' : 'Become Host & Start New Game'}
+                      </Button>
+                    ) : (
+                      <div className="text-center text-sm text-gray-500 py-2">
+                        Waiting for host to start a new game...
                       </div>
                     )}
                   </div>
