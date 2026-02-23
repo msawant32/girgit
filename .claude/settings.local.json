@@ -9,7 +9,8 @@
       "Bash(fly volumes delete:*)",
       "Bash(fly deploy:*)",
       "Bash(fly machines list:*)",
-      "Bash(fly logs:*)"
+      "Bash(fly logs:*)",
+      "Bash(tee:*)"
     ]
   }
 }

@@ -1,34 +1,21 @@
-# Fly.io Deployment Commands
+# Deployment (Fly.io + Supabase)
 
-## 1. Create persistent volume (one-time)
-```bash
-fly volumes create girgit_data --region iad --size 1
-```
+## Environment Variables
 
-## 2. Set environment variables
+Set these secrets on Fly.io:
+
 ```bash
+fly secrets set DATABASE_URL="postgresql://postgres:[password]@[host].supabase.co:5432/postgres"
 fly secrets set SESSION_SECRET=$(openssl rand -base64 32)
+fly secrets set CLIENT_URL="https://your-app.netlify.app"
 ```
 
-## 3. Deploy
+## Deploy
+
 ```bash
 fly deploy
 ```
 
-## 4. Check status
-```bash
-fly status
-fly logs
-```
+## Supabase Setup
 
-## 5. Get app URL
-```bash
-fly apps list
-```
-
-Your server will be at: https://girgit.fly.dev
-
-## Troubleshooting
-- Check logs: `fly logs`
-- SSH into machine: `fly ssh console`
-- Check database: `ls -la /data` (from SSH)
+See SUPABASE.md for full setup instructions.

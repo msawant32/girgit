@@ -291,7 +291,7 @@ export function setupSocketEvents(io) {
     });
 
     // Start game
-    socket.on('start-game', (callback) => {
+    socket.on('start-game', async (callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -320,7 +320,7 @@ export function setupSocketEvents(io) {
         }
 
         // Create game in database
-        const gameId = createGame(roomCode);
+        const gameId = await createGame(roomCode);
         gameIdMap.set(roomCode, gameId);
 
         if (!room.startGame()) {
@@ -580,7 +580,7 @@ export function setupSocketEvents(io) {
     });
 
     // End game
-    socket.on('end-game', (callback) => {
+    socket.on('end-game', async (callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -599,28 +599,28 @@ export function setupSocketEvents(io) {
         // Save to database and update cumulative scores
         const gameId = gameIdMap.get(roomCode);
         if (gameId) {
-          endGame(gameId, room.currentRound);
+          await endGame(gameId, room.currentRound);
 
-          // Save players and update cumulative scores
-          for (const playerScore of gameResult.finalScores) {
-            addGamePlayer(gameId, playerScore.playerName, playerScore.score);
-            updatePlayerScore(playerScore.playerName, playerScore.score);
-          }
-
-          // Save rounds
-          for (const round of room.roundHistory) {
-            addGameRound(gameId, round);
-          }
+          // Save players and rounds in parallel
+          await Promise.all([
+            ...gameResult.finalScores.map(ps =>
+              addGamePlayer(gameId, ps.playerName, ps.score)
+                .then(() => updatePlayerScore(ps.playerName, ps.score))
+            ),
+            ...room.roundHistory.map(round => addGameRound(gameId, round))
+          ]);
 
           gameIdMap.delete(roomCode);
         }
 
         // Get updated cumulative scores for all players
-        const cumulativeScores = gameResult.finalScores.map(ps => ({
-          playerName: ps.playerName,
-          gameScore: ps.score,
-          totalScore: getPlayerScore(ps.playerName)
-        }));
+        const cumulativeScores = await Promise.all(
+          gameResult.finalScores.map(async (ps) => ({
+            playerName: ps.playerName,
+            gameScore: ps.score,
+            totalScore: await getPlayerScore(ps.playerName)
+          }))
+        );
 
         io.to(roomCode).emit('game-ended', {
           ...gameResult,
@@ -759,9 +759,9 @@ export function setupSocketEvents(io) {
     });
 
     // Get game history
-    socket.on('get-game-history', (callback) => {
+    socket.on('get-game-history', async (callback) => {
       try {
-        const games = getRecentGames(20);
+        const games = await getRecentGames(20);
         callback({ success: true, games });
       } catch (error) {
         console.error('Error getting game history:', error);
@@ -770,9 +770,9 @@ export function setupSocketEvents(io) {
     });
 
     // Get game details
-    socket.on('get-game-details', ({ gameId }, callback) => {
+    socket.on('get-game-details', async ({ gameId }, callback) => {
       try {
-        const game = getGameDetails(gameId);
+        const game = await getGameDetails(gameId);
         if (!game) {
           return callback({ success: false, error: 'Game not found' });
         }

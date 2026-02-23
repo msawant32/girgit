@@ -42,11 +42,14 @@ export class GameRoom {
       timerEndTime: this.timerEndTime,
       tiebreakAttempted: this.tiebreakAttempted
     };
-    saveGameState(this.roomCode, state);
+    // Fire-and-forget: DB persistence is best-effort, game runs in memory
+    saveGameState(this.roomCode, state).catch(err =>
+      console.error(`Failed to save state for room ${this.roomCode}:`, err)
+    );
   }
 
-  static loadFromDB(roomCode) {
-    const state = loadGameState(roomCode);
+  static async loadFromDB(roomCode) {
+    const state = await loadGameState(roomCode);
     if (!state) return null;
 
     const room = new GameRoom(state.roomCode, state.hostId, state.country);

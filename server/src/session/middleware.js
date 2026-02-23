@@ -1,18 +1,19 @@
 import session from 'express-session';
-import connectSqlite3 from 'connect-sqlite3';
-import { fileURLToPath } from 'url';
-import { dirname, join } from 'path';
+import connectPgSimple from 'connect-pg-simple';
+import pg from 'pg';
 
-const __dirname = dirname(fileURLToPath(import.meta.url));
-const SQLiteStore = connectSqlite3(session);
+const { Pool } = pg;
+const PgSession = connectPgSimple(session);
 
-// Use /data in production (Fly.io), local path in development
-const dbDir = process.env.FLY_APP_NAME ? '/data' : join(__dirname, '../../');
+const pool = new Pool({
+  connectionString: process.env.DATABASE_URL,
+  ssl: process.env.NODE_ENV === 'production' ? { rejectUnauthorized: false } : false
+});
 
 export const sessionMiddleware = session({
-  store: new SQLiteStore({
-    db: 'sessions.db',
-    dir: dbDir
+  store: new PgSession({
+    pool,
+    createTableIfMissing: true
   }),
   secret: process.env.SESSION_SECRET || 'girgit-secret-key-change-in-production',
   resave: false,
@@ -21,7 +22,7 @@ export const sessionMiddleware = session({
   cookie: {
     httpOnly: true,
     secure: process.env.NODE_ENV === 'production',
-    maxAge: 86400000, // 24 hours
+    maxAge: 86400000,
     sameSite: 'lax'
   }
 });

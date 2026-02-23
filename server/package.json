@@ -20,14 +20,12 @@
     "node": ">=20.0.0"
   },
   "dependencies": {
-    "better-sqlite3": "^12.6.2",
-    "connect-sqlite3": "^0.9.16",
+    "connect-pg-simple": "^10.0.0",
     "cors": "^2.8.5",
     "express": "^4.18.2",
     "express-session": "^1.19.0",
+    "pg": "^8.13.3",
     "socket.io": "^4.6.1"
   },
-  "devDependencies": {
-    "@flydotio/dockerfile": "^0.7.10"
-  }
+  "devDependencies": {}
 }

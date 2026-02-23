@@ -27,6 +27,3 @@ primary_region = 'iad'
   cpus = 1
   memory_mb = 1024
 
-[mounts]
-  source = "girgit_data"
-  destination = "/data"

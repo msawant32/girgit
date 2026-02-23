@@ -48,5 +48,5 @@ httpServer.listen(PORT, '0.0.0.0', () => {
   console.log(`🎮 Girgit Game Server v1.0.0`);
   console.log(`🌐 Environment: ${process.env.NODE_ENV || 'development'}`);
   console.log(`🚀 Running on port ${PORT}`);
-  console.log(`💾 Database: ${process.env.FLY_APP_NAME ? '/data' : 'local'}`);
+  console.log(`💾 Database: PostgreSQL (Supabase)`);
 });
