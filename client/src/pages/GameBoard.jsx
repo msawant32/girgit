@@ -5,6 +5,7 @@ import { Button } from '../components/Button';
 import { Timer } from '../components/Timer';
 import { PlayerList } from '../components/PlayerList';
 import { Chat } from '../components/Chat';
+import { RoundStatus } from '../components/RoundStatus';
 import { Logo } from '../components/Logo';
 import socket from '../utils/socket';
 
@@ -73,6 +74,7 @@ export function GameBoard() {
   const [roundResult, setRoundResult] = useState(null);
   const [chameleonGuess, setChameleonGuess] = useState('');
   const [cumulativeScores, setCumulativeScores] = useState([]);
+  const [roundHistory, setRoundHistory] = useState([]);
   const [startingNewGame, setStartingNewGame] = useState(false);
   const [isRejoining, setIsRejoining] = useState(false);
 
@@ -135,6 +137,7 @@ export function GameBoard() {
       setIsChameleon(data.isChameleon);
       setPlayers(data.players);
       setRemainingTime(data.remainingTime);
+      if (data.roundHistory !== undefined) setRoundHistory(data.roundHistory);
       setClues([]);
       setClueSubmitted(false);
       setMyClue('');
@@ -185,6 +188,7 @@ export function GameBoard() {
     function onRoundResolved(data) {
       setRoundResult(data);
       setGameState('resolution');
+      if (data.roundHistory) setRoundHistory(data.roundHistory);
     }
 
     function onChameleonGuessed(data) {
@@ -857,8 +861,17 @@ export function GameBoard() {
             )}
           </div>
 
-          {/* Chat Section */}
-          <div className="lg:col-span-1">
+          {/* Right Column: Round Status + Chat */}
+          <div className="lg:col-span-1 space-y-3 sm:space-y-4">
+            {currentRound > 0 && (
+              <Card>
+                <RoundStatus
+                  roundHistory={roundHistory}
+                  currentRound={currentRound}
+                  gameState={gameState}
+                />
+              </Card>
+            )}
             <Card title="Chat">
               <Chat
                 messages={messages}
