@@ -29,6 +29,7 @@ await pool.query(`
   CREATE TABLE IF NOT EXISTS game_history (
     id SERIAL PRIMARY KEY,
     room_code TEXT NOT NULL,
+    started_by TEXT,
     started_at TEXT NOT NULL,
     ended_at TEXT,
     total_rounds INTEGER DEFAULT 0
@@ -55,7 +56,27 @@ await pool.query(`
     total_score INTEGER NOT NULL DEFAULT 0
   );
 
+  CREATE TABLE IF NOT EXISTS round_clues (
+    id SERIAL PRIMARY KEY,
+    game_id INTEGER NOT NULL REFERENCES game_history(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL,
+    player_name TEXT NOT NULL,
+    clue TEXT NOT NULL,
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
+  CREATE TABLE IF NOT EXISTS round_votes (
+    id SERIAL PRIMARY KEY,
+    game_id INTEGER NOT NULL REFERENCES game_history(id) ON DELETE CASCADE,
+    round_number INTEGER NOT NULL,
+    voter_name TEXT NOT NULL,
+    voted_for_name TEXT NOT NULL,
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+  );
+
   CREATE INDEX IF NOT EXISTS idx_active_games_updated ON active_games(updated_at);
+  CREATE INDEX IF NOT EXISTS idx_round_clues_game ON round_clues(game_id, round_number);
+  CREATE INDEX IF NOT EXISTS idx_round_votes_game ON round_votes(game_id, round_number);
 `);
 
 console.log('Database schema initialized');
@@ -95,10 +116,10 @@ export async function deleteGameState(roomCode) {
 }
 
 // Game History
-export async function createGame(roomCode) {
+export async function createGame(roomCode, startedBy) {
   const { rows } = await pool.query(
-    'INSERT INTO game_history (room_code, started_at) VALUES ($1, $2) RETURNING id',
-    [roomCode, new Date().toISOString()]
+    'INSERT INTO game_history (room_code, started_by, started_at) VALUES ($1, $2, $3) RETURNING id',
+    [roomCode, startedBy || null, new Date().toISOString()]
   );
   return rows[0].id;
 }
@@ -126,6 +147,37 @@ export async function addGameRound(gameId, roundData) {
   );
 }
 
+// Immediate clue/vote persistence (ACID - single INSERT per call)
+export async function saveClue(gameId, roundNumber, playerName, clue) {
+  await pool.query(
+    `INSERT INTO round_clues (game_id, round_number, player_name, clue)
+     VALUES ($1, $2, $3, $4)`,
+    [gameId, roundNumber, playerName, clue]
+  );
+}
+
+export async function saveVote(gameId, roundNumber, voterName, votedForName) {
+  await pool.query(
+    `INSERT INTO round_votes (game_id, round_number, voter_name, voted_for_name)
+     VALUES ($1, $2, $3, $4)`,
+    [gameId, roundNumber, voterName, votedForName]
+  );
+}
+
+export async function getGameCluesAndVotes(gameId) {
+  const [{ rows: clues }, { rows: votes }] = await Promise.all([
+    pool.query(
+      'SELECT round_number, player_name, clue FROM round_clues WHERE game_id = $1 ORDER BY round_number, submitted_at',
+      [gameId]
+    ),
+    pool.query(
+      'SELECT round_number, voter_name, voted_for_name FROM round_votes WHERE game_id = $1 ORDER BY round_number, submitted_at',
+      [gameId]
+    )
+  ]);
+  return { clues, votes };
+}
+
 export async function getRecentGames(limit = 20) {
   const { rows: games } = await pool.query(
     `SELECT id, room_code, started_at, ended_at, total_rounds
@@ -142,6 +194,7 @@ export async function getRecentGames(limit = 20) {
     return {
       id: game.id,
       roomCode: game.room_code,
+      startedBy: game.started_by,
       startedAt: game.started_at,
       endedAt: game.ended_at,
       totalRounds: game.total_rounds,
@@ -152,13 +205,13 @@ export async function getRecentGames(limit = 20) {
 
 export async function getGameDetails(gameId) {
   const { rows } = await pool.query(
-    'SELECT id, room_code, started_at, ended_at, total_rounds FROM game_history WHERE id = $1',
+    'SELECT id, room_code, started_by, started_at, ended_at, total_rounds FROM game_history WHERE id = $1',
     [gameId]
   );
   if (!rows[0]) return null;
   const game = rows[0];
 
-  const [{ rows: players }, { rows: rounds }] = await Promise.all([
+  const [{ rows: players }, { rows: rounds }, { rows: clues }, { rows: votes }] = await Promise.all([
     pool.query(
       'SELECT player_name as name, final_score as score FROM game_players WHERE game_id = $1 ORDER BY score DESC',
       [gameId]
@@ -166,12 +219,21 @@ export async function getGameDetails(gameId) {
     pool.query(
       'SELECT round_number, category, secret_word, chameleon_name, suspected_name, chameleon_caught FROM game_rounds WHERE game_id = $1 ORDER BY round_number',
       [gameId]
+    ),
+    pool.query(
+      'SELECT round_number, player_name, clue FROM round_clues WHERE game_id = $1 ORDER BY round_number, submitted_at',
+      [gameId]
+    ),
+    pool.query(
+      'SELECT round_number, voter_name, voted_for_name FROM round_votes WHERE game_id = $1 ORDER BY round_number, submitted_at',
+      [gameId]
     )
   ]);
 
   return {
     id: game.id,
     roomCode: game.room_code,
+    startedBy: game.started_by,
     startedAt: game.started_at,
     endedAt: game.ended_at,
     totalRounds: game.total_rounds,
@@ -182,7 +244,9 @@ export async function getGameDetails(gameId) {
       secretWord: r.secret_word,
       chameleonName: r.chameleon_name,
       suspectedName: r.suspected_name,
-      chameleonCaught: r.chameleon_caught
+      chameleonCaught: r.chameleon_caught,
+      clues: clues.filter(c => c.round_number === r.round_number).map(c => ({ playerName: c.player_name, clue: c.clue })),
+      votes: votes.filter(v => v.round_number === r.round_number).map(v => ({ voterName: v.voter_name, votedForName: v.voted_for_name }))
     }))
   };
 }

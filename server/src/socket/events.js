@@ -4,6 +4,8 @@ import {
   endGame,
   addGamePlayer,
   addGameRound,
+  saveClue,
+  saveVote,
   getRecentGames,
   getGameDetails,
   getPlayerScore,
@@ -266,7 +268,8 @@ export function setupSocketEvents(io) {
               secretWord: isChameleon ? null : room.secretWord,
               isChameleon,
               players: room.getPlayers(),
-              remainingTime: room.getRemainingTime()
+              remainingTime: room.getRemainingTime(),
+              roundHistory: room.roundHistory
             });
 
             // Send existing clues
@@ -319,8 +322,9 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Need at least 3 players' });
         }
 
-        // Create game in database
-        const gameId = await createGame(roomCode);
+        // Create game in database, record who started it
+        const hostPlayer = room.players.get(socket.id);
+        const gameId = await createGame(roomCode, hostPlayer?.name);
         gameIdMap.set(roomCode, gameId);
 
         if (!room.startGame()) {
@@ -347,7 +351,7 @@ export function setupSocketEvents(io) {
     });
 
     // Submit clue
-    socket.on('submit-clue', ({ clue }, callback) => {
+    socket.on('submit-clue', async ({ clue }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -366,6 +370,15 @@ export function setupSocketEvents(io) {
         }
 
         room.saveState();
+
+        // Immediately persist clue to DB
+        const gameId = gameIdMap.get(roomCode);
+        if (gameId) {
+          const playerName = room.players.get(playerId)?.name;
+          saveClue(gameId, room.currentRound, playerName, clue).catch(err =>
+            console.error('Failed to save clue to DB:', err)
+          );
+        }
 
         // Broadcast clue to all players
         io.to(roomCode).emit('clue-submitted', {
@@ -414,7 +427,7 @@ export function setupSocketEvents(io) {
     });
 
     // Submit vote
-    socket.on('submit-vote', ({ votedForId }, callback) => {
+    socket.on('submit-vote', async ({ votedForId }, callback) => {
       try {
         const roomCode = socketToRoom.get(socket.id);
         const room = rooms.get(roomCode);
@@ -433,6 +446,16 @@ export function setupSocketEvents(io) {
         }
 
         room.saveState();
+
+        // Immediately persist vote to DB
+        const gameId = gameIdMap.get(roomCode);
+        if (gameId) {
+          const voterName = room.players.get(voterId)?.name;
+          const votedForName = room.players.get(votedForId)?.name;
+          saveVote(gameId, room.currentRound, voterName, votedForName).catch(err =>
+            console.error('Failed to save vote to DB:', err)
+          );
+        }
 
         io.to(roomCode).emit('vote-submitted', {
           voterId: socket.id,
@@ -828,7 +851,8 @@ function sendRoundUpdate(io, roomCode, room) {
       secretWord: isChameleon ? null : room.secretWord,
       isChameleon,
       players: room.getPlayers(),
-      remainingTime: room.getRemainingTime()
+      remainingTime: room.getRemainingTime(),
+      roundHistory: room.roundHistory
     });
   });
 
@@ -944,7 +968,8 @@ function resolveRound(io, roomCode, room) {
       secretWord: room.secretWord,
       scores: room.getGameState().scores,
       tieResult: true,
-      message: 'No clear decision - Girgit wins!'
+      message: 'No clear decision - Girgit wins!',
+      roundHistory: room.roundHistory
     });
   } else {
     finalizeRound(io, roomCode, room, result);
@@ -962,6 +987,7 @@ function finalizeRound(io, roomCode, room, result) {
     category: room.category,
     secretWord: room.secretWord,
     scores: room.getGameState().scores,
-    needsChameleonGuess: result.chameleonCaught
+    needsChameleonGuess: result.chameleonCaught,
+    roundHistory: room.roundHistory
   });
 }
