@@ -76,6 +76,15 @@ await pool.query(`
     UNIQUE (game_id, round_number, voter_name)
   );
 
+  CREATE TABLE IF NOT EXISTS room_participants (
+    id SERIAL PRIMARY KEY,
+    room_code TEXT NOT NULL,
+    player_name TEXT NOT NULL,
+    joined_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    is_host BOOLEAN NOT NULL DEFAULT FALSE,
+    UNIQUE (room_code, player_name)
+  );
+
   CREATE INDEX IF NOT EXISTS idx_active_games_updated ON active_games(updated_at);
   CREATE INDEX IF NOT EXISTS idx_round_clues_game ON round_clues(game_id, round_number);
   CREATE INDEX IF NOT EXISTS idx_round_votes_game ON round_votes(game_id, round_number);
@@ -157,6 +166,28 @@ export async function addGameRound(gameId, roundData) {
      VALUES ($1, $2, $3, $4, $5, $6, $7)`,
     [gameId, roundData.round, roundData.category, roundData.secretWord,
      roundData.chameleonName, roundData.suspectedName, roundData.chameleonCaught]
+  );
+}
+
+// Room Participants
+export async function addRoomParticipant(roomCode, playerName, isHost = false) {
+  await pool.query(
+    `INSERT INTO room_participants (room_code, player_name, is_host)
+     VALUES ($1, $2, $3)
+     ON CONFLICT (room_code, player_name) DO UPDATE SET is_host = $3, joined_at = NOW()`,
+    [roomCode, playerName, isHost]
+  );
+}
+
+export async function updateRoomHost(roomCode, playerName) {
+  // Clear all hosts in room, then set new one
+  await pool.query(
+    `UPDATE room_participants SET is_host = FALSE WHERE room_code = $1`,
+    [roomCode]
+  );
+  await pool.query(
+    `UPDATE room_participants SET is_host = TRUE WHERE room_code = $1 AND player_name = $2`,
+    [roomCode, playerName]
   );
 }
 

@@ -10,7 +10,9 @@ import {
   getGamesByRoom,
   getGameDetails,
   getPlayerScore,
-  updatePlayerScore
+  updatePlayerScore,
+  addRoomParticipant,
+  updateRoomHost
 } from '../database/db.js';
 
 const rooms = new Map(); // roomCode -> GameRoom
@@ -77,8 +79,12 @@ export function setupSocketEvents(io) {
         socket.join(session.roomCode);
 
         // Ensure there's always a host
-        room.ensureHost();
+        const reconnectHostChanged = room.ensureHost();
         room.saveState();
+        if (reconnectHostChanged) {
+          const newHost = room.players.get(room.hostId);
+          if (newHost) updateRoomHost(session.roomCode, newHost.name).catch(err => console.error('Failed to update room host:', err));
+        }
 
         // Notify client of successful auto-reconnection with full state
         const fullState = room.getFullState(socket.id);
@@ -158,6 +164,11 @@ export function setupSocketEvents(io) {
         socket.request.session.playerName = playerName;
         socket.request.session.save();
 
+        // Save host join to DB (fire-and-forget)
+        addRoomParticipant(roomCode, playerName, true).catch(err =>
+          console.error('Failed to save room participant:', err)
+        );
+
         callback({ success: true, roomCode, player });
         console.log(`Room created: ${roomCode} by ${playerName}`);
       } catch (error) {
@@ -193,8 +204,12 @@ export function setupSocketEvents(io) {
           return callback({ success: false, error: 'Player name already taken in this room' });
         }
         socketToRoom.set(socket.id, roomCode);
-        room.ensureHost(); // Ensure there's always a host
+        const hostChanged = room.ensureHost(); // Ensure there's always a host
         room.saveState();
+        if (hostChanged) {
+          const newHost = room.players.get(room.hostId);
+          if (newHost) updateRoomHost(roomCode, newHost.name).catch(err => console.error('Failed to update room host:', err));
+        }
 
         socket.join(roomCode);
 
@@ -202,6 +217,11 @@ export function setupSocketEvents(io) {
         socket.request.session.roomCode = roomCode;
         socket.request.session.playerName = playerName;
         socket.request.session.save();
+
+        // Save participant join to DB (fire-and-forget)
+        addRoomParticipant(roomCode, playerName, false).catch(err =>
+          console.error('Failed to save room participant:', err)
+        );
 
         // Send full state to joining player via callback
         callback({ success: true, player, gameState: room.getGameState() });
@@ -705,6 +725,11 @@ export function setupSocketEvents(io) {
           return callback(result);
         }
 
+        // Persist host change to DB (fire-and-forget)
+        updateRoomHost(roomCode, result.newHostName).catch(err =>
+          console.error('Failed to update room host:', err)
+        );
+
         // Notify all players of new host
         io.to(roomCode).emit('host-changed', {
           newHostId: result.newHostId,
@@ -752,8 +777,12 @@ export function setupSocketEvents(io) {
         socketToRoom.delete(playerId);
 
         // Ensure there's always a host
-        room.ensureHost();
+        const kickHostChanged = room.ensureHost();
         room.saveState();
+        if (kickHostChanged) {
+          const newHost = room.players.get(room.hostId);
+          if (newHost) updateRoomHost(roomCode, newHost.name).catch(err => console.error('Failed to update room host:', err));
+        }
 
         // Clear their session
         const playerSocket = io.sockets.sockets.get(playerId);
