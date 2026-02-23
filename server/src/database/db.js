@@ -62,7 +62,8 @@ await pool.query(`
     round_number INTEGER NOT NULL,
     player_name TEXT NOT NULL,
     clue TEXT NOT NULL,
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (game_id, round_number, player_name)
   );
 
   CREATE TABLE IF NOT EXISTS round_votes (
@@ -71,12 +72,24 @@ await pool.query(`
     round_number INTEGER NOT NULL,
     voter_name TEXT NOT NULL,
     voted_for_name TEXT NOT NULL,
-    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+    submitted_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+    UNIQUE (game_id, round_number, voter_name)
   );
 
   CREATE INDEX IF NOT EXISTS idx_active_games_updated ON active_games(updated_at);
   CREATE INDEX IF NOT EXISTS idx_round_clues_game ON round_clues(game_id, round_number);
   CREATE INDEX IF NOT EXISTS idx_round_votes_game ON round_votes(game_id, round_number);
+`);
+
+// Add unique constraints if not already present (migration for existing tables)
+await pool.query(`
+  DO $$ BEGIN
+    ALTER TABLE round_clues ADD CONSTRAINT uq_round_clues_player UNIQUE (game_id, round_number, player_name);
+  EXCEPTION WHEN duplicate_table THEN NULL; WHEN others THEN NULL; END $$;
+
+  DO $$ BEGIN
+    ALTER TABLE round_votes ADD CONSTRAINT uq_round_votes_voter UNIQUE (game_id, round_number, voter_name);
+  EXCEPTION WHEN duplicate_table THEN NULL; WHEN others THEN NULL; END $$;
 `);
 
 console.log('Database schema initialized');
@@ -151,15 +164,19 @@ export async function addGameRound(gameId, roundData) {
 export async function saveClue(gameId, roundNumber, playerName, clue) {
   await pool.query(
     `INSERT INTO round_clues (game_id, round_number, player_name, clue)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (game_id, round_number, player_name) DO NOTHING`,
     [gameId, roundNumber, playerName, clue]
   );
 }
 
 export async function saveVote(gameId, roundNumber, voterName, votedForName) {
+  // Upsert: one final vote per voter per round (handles vote changes)
   await pool.query(
     `INSERT INTO round_votes (game_id, round_number, voter_name, voted_for_name)
-     VALUES ($1, $2, $3, $4)`,
+     VALUES ($1, $2, $3, $4)
+     ON CONFLICT (game_id, round_number, voter_name)
+     DO UPDATE SET voted_for_name = $4, submitted_at = NOW()`,
     [gameId, roundNumber, voterName, votedForName]
   );
 }
@@ -178,9 +195,44 @@ export async function getGameCluesAndVotes(gameId) {
   return { clues, votes };
 }
 
+// Get active room state from DB (for room-scoped recovery)
+export async function getActiveRoomState(roomCode) {
+  const { rows } = await pool.query(
+    'SELECT state FROM active_games WHERE room_code = $1',
+    [roomCode]
+  );
+  return rows[0] ? JSON.parse(rows[0].state) : null;
+}
+
+// Get all completed games for a specific room
+export async function getGamesByRoom(roomCode, limit = 20) {
+  const { rows: games } = await pool.query(
+    `SELECT id, room_code, started_by, started_at, ended_at, total_rounds
+     FROM game_history WHERE room_code = $1 AND ended_at IS NOT NULL
+     ORDER BY ended_at DESC LIMIT $2`,
+    [roomCode, limit]
+  );
+  return Promise.all(games.map(async (game) => {
+    const [{ rows: players }, { rows: rounds }] = await Promise.all([
+      pool.query('SELECT player_name as name, final_score as score FROM game_players WHERE game_id = $1 ORDER BY score DESC', [game.id]),
+      pool.query('SELECT round_number, category, secret_word, chameleon_name, chameleon_caught FROM game_rounds WHERE game_id = $1 ORDER BY round_number', [game.id])
+    ]);
+    return {
+      id: game.id,
+      roomCode: game.room_code,
+      startedBy: game.started_by,
+      startedAt: game.started_at,
+      endedAt: game.ended_at,
+      totalRounds: game.total_rounds,
+      players,
+      rounds: rounds.map(r => ({ roundNumber: r.round_number, category: r.category, secretWord: r.secret_word, chameleonName: r.chameleon_name, chameleonCaught: r.chameleon_caught }))
+    };
+  }));
+}
+
 export async function getRecentGames(limit = 20) {
   const { rows: games } = await pool.query(
-    `SELECT id, room_code, started_at, ended_at, total_rounds
+    `SELECT id, room_code, started_by, started_at, ended_at, total_rounds
      FROM game_history WHERE ended_at IS NOT NULL
      ORDER BY ended_at DESC LIMIT $1`,
     [limit]

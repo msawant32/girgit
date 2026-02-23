@@ -82,6 +82,12 @@ export class GameRoom {
   }
 
   addPlayer(socketId, playerName) {
+    // Enforce unique name within this room (case-insensitive)
+    for (const [existingId, p] of this.players.entries()) {
+      if (p.name.toLowerCase() === playerName.toLowerCase() && existingId !== socketId) {
+        return null; // Name already taken in this room
+      }
+    }
     const player = {
       id: socketId,
       name: playerName,

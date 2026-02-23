@@ -179,11 +179,16 @@ export function GameBoard() {
     }
 
     function onClueSubmitted(data) {
-      setClues((prev) => [...prev, {
-        playerId: data.playerId,
-        playerName: data.playerName,
-        clue: data.clue
-      }]);
+      // Use full array if provided (reliable sync), else append
+      if (data.allClues) {
+        setClues(data.allClues);
+      } else {
+        setClues((prev) => {
+          // Avoid duplicates by checking playerName
+          if (prev.some(c => c.playerName === data.playerName)) return prev;
+          return [...prev, { playerId: data.playerId, playerName: data.playerName, clue: data.clue }];
+        });
+      }
     }
 
     function onVoteSubmitted(data) {

@@ -7,6 +7,7 @@ import {
   saveClue,
   saveVote,
   getRecentGames,
+  getGamesByRoom,
   getGameDetails,
   getPlayerScore,
   updatePlayerScore
@@ -188,6 +189,9 @@ export function setupSocketEvents(io) {
         }
 
         const player = room.addPlayer(socket.id, playerName);
+        if (!player) {
+          return callback({ success: false, error: 'Player name already taken in this room' });
+        }
         socketToRoom.set(socket.id, roomCode);
         room.ensureHost(); // Ensure there's always a host
         room.saveState();
@@ -408,13 +412,14 @@ export function setupSocketEvents(io) {
           );
         }
 
-        // Broadcast clue to all players
+        // Broadcast clue + full clues array to all players (enables full replace on client)
         io.to(roomCode).emit('clue-submitted', {
           playerId: playerId,
           playerName: room.players.get(playerId).name,
           clue,
           cluesCount: room.clues.length,
-          totalPlayers: room.players.size
+          totalPlayers: room.players.size,
+          allClues: room.clues  // full array for reliable sync
         });
 
         callback({ success: true });
@@ -852,13 +857,26 @@ export function setupSocketEvents(io) {
       }
     });
 
-    // Get game history
+    // Get game history (global)
     socket.on('get-game-history', async (callback) => {
       try {
         const games = await getRecentGames(20);
         callback({ success: true, games });
       } catch (error) {
         console.error('Error getting game history:', error);
+        callback({ success: false, error: error.message });
+      }
+    });
+
+    // Get game history for current room only
+    socket.on('get-room-history', async (callback) => {
+      try {
+        const roomCode = socketToRoom.get(socket.id);
+        if (!roomCode) return callback({ success: false, error: 'Not in a room' });
+        const games = await getGamesByRoom(roomCode, 10);
+        callback({ success: true, games, roomCode });
+      } catch (error) {
+        console.error('Error getting room history:', error);
         callback({ success: false, error: error.message });
       }
     });

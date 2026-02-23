@@ -3,11 +3,22 @@ import { useState } from 'react';
 export function PlayerList({ players, currentPlayerId, highlightPlayerId = null, clues = [], votes = new Map(), isHost = false, onKickPlayer = null }) {
   const [isExpanded, setIsExpanded] = useState(true);
 
-  // Create maps for clues and votes
-  const clueMap = new Map();
+  // Map by player NAME (stable across reconnects, unlike socket IDs)
+  const clueByName = new Map();
   clues.forEach(clue => {
-    clueMap.set(clue.playerId, clue.clue);
+    if (clue.playerName) clueByName.set(clue.playerName, clue.clue);
   });
+
+  // votes Map: voterId (socketId) -> votedForId (socketId)
+  // Build name-based lookup: voterName -> votedForName
+  const voteByVoterName = new Map();
+  for (const [voterId, votedForId] of votes.entries()) {
+    const voterPlayer = players.find(p => p.id === voterId);
+    const votedForPlayer = players.find(p => p.id === votedForId);
+    if (voterPlayer && votedForPlayer) {
+      voteByVoterName.set(voterPlayer.name, votedForPlayer.name);
+    }
+  }
 
   const gridCols = isHost ? 'grid-cols-4' : 'grid-cols-3';
 
@@ -39,9 +50,8 @@ export function PlayerList({ players, currentPlayerId, highlightPlayerId = null,
 
           <div className="space-y-2">
             {players.map((player) => {
-              const playerClue = clueMap.get(player.id);
-              const votedForId = votes.get(player.id);
-              const votedForName = votedForId ? players.find(p => p.id === votedForId)?.name : null;
+              const playerClue = clueByName.get(player.name);
+              const votedForName = voteByVoterName.get(player.name);
 
               return (
                 <div
