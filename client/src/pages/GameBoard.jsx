@@ -138,9 +138,16 @@ export function GameBoard() {
       setPlayers(data.players);
       setRemainingTime(data.remainingTime);
       if (data.roundHistory !== undefined) setRoundHistory(data.roundHistory);
-      // Sync isHost in case it changed (e.g. after reconnect)
+      // Sync isHost from player list
       const me = data.players.find(p => p.id === socket.id);
-      if (me) setIsHost(me.isHost);
+      const myIsHost = me ? me.isHost : false;
+      setIsHost(myIsHost);
+      // If no host in room, auto-claim
+      if (!data.players.some(p => p.isHost) && me) {
+        socket.emit('claim-host', (res) => {
+          if (res.success) setIsHost(true);
+        });
+      }
 
       // If reconnect data: restore existing state, don't reset
       if (data.existingClues !== undefined) {

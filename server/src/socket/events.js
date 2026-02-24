@@ -292,6 +292,22 @@ export function setupSocketEvents(io) {
         socketToRoom.set(socket.id, roomCode);
         socket.join(roomCode);
 
+        // Ensure there's always a host after rejoin
+        const rejoinHostChanged = room.ensureHost();
+        room.saveState();
+        if (rejoinHostChanged) {
+          const newHost = room.players.get(room.hostId);
+          if (newHost) {
+            updateRoomHost(roomCode, newHost.name).catch(err => console.error('Failed to update room host:', err));
+            // Broadcast host change to all (including rejoiner)
+            io.to(roomCode).emit('host-changed', {
+              newHostId: room.hostId,
+              newHostName: newHost.name,
+              players: room.getPlayers()
+            });
+          }
+        }
+
         // Save to session for auto-reconnect
         socket.request.session.roomCode = roomCode;
         socket.request.session.playerName = playerName;
@@ -301,12 +317,14 @@ export function setupSocketEvents(io) {
         const fullGameState = room.getGameState();
         callback({ success: true, player, gameState: fullGameState, rejoined: true });
 
-        // Then notify OTHER players (not the rejoiner)
-        socket.broadcast.to(roomCode).emit('player-reconnected', {
-          playerId: socket.id,
-          playerName,
-          players: room.getPlayers()
-        });
+        // Then notify OTHER players (not the rejoiner) — skip if host-changed already broadcast above
+        if (!rejoinHostChanged) {
+          socket.broadcast.to(roomCode).emit('player-reconnected', {
+            playerId: socket.id,
+            playerName,
+            players: room.getPlayers()
+          });
+        }
 
         // If game is in progress, send round update to rejoining player
         // Add delay to ensure client has time to navigate and set up listeners
@@ -353,6 +371,19 @@ export function setupSocketEvents(io) {
 
         if (!room) {
           return callback({ success: false, error: 'Room not found' });
+        }
+
+        // If no host exists, auto-assign the requesting player as host
+        if (!room.hostId || !room.players.has(room.hostId)) {
+          const result = room.claimHost(socket.id);
+          if (result.success) {
+            updateRoomHost(roomCode, result.newHostName).catch(err => console.error('Failed to update room host:', err));
+            io.to(roomCode).emit('host-changed', {
+              newHostId: result.newHostId,
+              newHostName: result.newHostName,
+              players: room.getPlayers()
+            });
+          }
         }
 
         // Only host can start game (both initial and new games after ending)

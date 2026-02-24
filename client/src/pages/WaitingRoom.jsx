@@ -12,13 +12,28 @@ export function WaitingRoom() {
   const navigate = useNavigate();
   const location = useLocation();
   const [players, setPlayers] = useState(location.state?.players || []);
-  const [currentPlayer, setCurrentPlayer] = useState(null);
+  const [currentPlayer, setCurrentPlayer] = useState(socket.id || null);
   const [isHost, setIsHost] = useState(location.state?.player?.isHost || false);
   const [messages, setMessages] = useState([]);
   const [error, setError] = useState('');
   const [isRejoining, setIsRejoining] = useState(false);
   const [hostAvailable, setHostAvailable] = useState(false);
   const [hostMessage, setHostMessage] = useState('');
+
+  // Auto-claim host if no host exists in the room
+  const autoClaimHostIfNeeded = (playerList, myName) => {
+    const hasHost = playerList.some(p => p.isHost);
+    if (!hasHost && myName) {
+      socket.emit('claim-host', (res) => {
+        if (res.success) {
+          setIsHost(true);
+          setPlayers(prev => prev.map(p =>
+            p.name === myName ? { ...p, isHost: true } : { ...p, isHost: false }
+          ));
+        }
+      });
+    }
+  };
 
   useEffect(() => {
     // Rejoin room on page refresh
@@ -33,11 +48,12 @@ export function WaitingRoom() {
           socket.emit('rejoin-room', { roomCode, playerName: savedPlayerName }, (response) => {
             setIsRejoining(false);
             if (response && response.success) {
-              setPlayers(response.gameState.players);
-              const myPlayer = response.gameState.players.find(p => p.name === savedPlayerName);
-              if (myPlayer) {
-                setIsHost(myPlayer.isHost);
-              }
+              const playerList = response.gameState.players;
+              setPlayers(playerList);
+              const myPlayer = playerList.find(p => p.name === savedPlayerName);
+              if (myPlayer) setIsHost(myPlayer.isHost);
+              // Auto-claim host if nobody has it
+              autoClaimHostIfNeeded(playerList, savedPlayerName);
               if (response.gameState.gameState !== 'waiting') {
                 navigate(`/game/${roomCode}`);
               }
@@ -45,13 +61,12 @@ export function WaitingRoom() {
               // Rejoin failed, try joining as new player
               socket.emit('join-room', { roomCode, playerName: savedPlayerName }, (joinResponse) => {
                 if (joinResponse && joinResponse.success) {
-                  setPlayers(joinResponse.gameState.players);
-                  const myPlayer = joinResponse.gameState.players.find(p => p.name === savedPlayerName);
-                  if (myPlayer) {
-                    setIsHost(myPlayer.isHost);
-                  }
+                  const playerList = joinResponse.gameState.players;
+                  setPlayers(playerList);
+                  const myPlayer = playerList.find(p => p.name === savedPlayerName);
+                  if (myPlayer) setIsHost(myPlayer.isHost);
+                  autoClaimHostIfNeeded(playerList, savedPlayerName);
                 } else {
-                  // Room not found or error, redirect with message
                   navigate('/', {
                     replace: true,
                     state: { error: joinResponse?.error || 'Room not found. Please create or join a new room.' }
@@ -74,51 +89,45 @@ export function WaitingRoom() {
           state: { error: 'Room session expired. Please create or join a new room.' }
         });
       }
+    } else {
+      // Arrived fresh from create/join — check if we already have host in the list
+      const myName = localStorage.getItem('lastPlayerName');
+      autoClaimHostIfNeeded(location.state.players, myName);
     }
   }, []);
 
   useEffect(() => {
-    // Get current player info from socket
     const currentPlayerId = socket.id;
     setCurrentPlayer(currentPlayerId);
 
-    // Listen for player joined
     function onPlayerJoined({ player, players: updatedPlayers }) {
       setPlayers(updatedPlayers);
-
-      // If this is the current player joining, check if host
-      if (player.id === currentPlayerId) {
-        setIsHost(player.isHost);
-      }
+      const me = updatedPlayers.find(p => p.id === currentPlayerId);
+      if (me) setIsHost(me.isHost);
     }
 
-    // Listen for player reconnected
     function onPlayerReconnected({ players: updatedPlayers }) {
       setPlayers(updatedPlayers);
+      const me = updatedPlayers.find(p => p.id === currentPlayerId);
+      if (me) setIsHost(me.isHost);
     }
 
-    // Listen for player left
-    function onPlayerLeft({ players: updatedPlayers, hostLeft }) {
+    function onPlayerLeft({ players: updatedPlayers }) {
       setPlayers(updatedPlayers);
-      if (hostLeft) {
-        setIsHost(false);
-      }
+      const me = updatedPlayers.find(p => p.id === currentPlayerId);
+      setIsHost(me ? me.isHost : false);
     }
 
-    // Listen for host available
     function onHostAvailable({ message }) {
       setHostAvailable(true);
       setHostMessage(message);
     }
 
-    // Listen for host changed
-    function onHostChanged({ newHostId, newHostName, players: updatedPlayers }) {
+    function onHostChanged({ newHostId, players: updatedPlayers }) {
       setPlayers(updatedPlayers);
       setHostAvailable(false);
       setHostMessage('');
-      if (newHostId === socket.id) {
-        setIsHost(true);
-      }
+      setIsHost(newHostId === socket.id);
     }
 
     // Listen for game started
